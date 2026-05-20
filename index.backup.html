@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>40k Master Attack Pipeline</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        grimdark: '#121214',
+                        cardbg: '#1a1a1e',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans p-4 md:p-8 flex justify-center minimal-scrollbar">
+
+<div class="w-full max-w-2xl bg-zinc-900 border border-zinc-800/80 rounded-2xl shadow-2xl p-6 space-y-6">
+    <h1 class="text-xl font-black tracking-wider text-amber-500 text-center uppercase border-b border-zinc-800 pb-3">
+        Tactical Damage Pipeline
+    </h1>
+
+    <div class="bg-zinc-800/40 border border-zinc-800 p-3 rounded-xl flex flex-wrap gap-3 items-center">
+        <input type="text" id="rosterNameInput" placeholder="e.g., Space Marine Squad" 
+               class="flex-1 min-w-[150px] bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-500 transition">
+        <button onclick="saveCurrentRoster()" 
+                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition shadow-md">
+            Save Roster
+        </button>
+        <select id="savedRostersSelect" onchange="loadSelectedRoster()" 
+                class="flex-1 min-w-[150px] bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-400 outline-none focus:border-amber-500 transition">
+            <option value="" disabled selected>-- Load Saved Roster --</option>
+        </select>
+    </div>
+
+    <div class="bg-zinc-800/40 border border-rose-500/20 p-4 rounded-xl space-y-3">
+        <div class="flex flex-wrap gap-3">
+            <select id="targetUnitSelect" onchange="updateTargetStatsDisplay()" 
+                    class="flex-1 min-w-[200px] bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 outline-none focus:border-rose-500 transition">
+                <option value="none" selected>-- Raw Saves Only (No Target) --</option>
+                <option value="intercessor">Space Marine Intercessor</option>
+                <option value="ork_boy">Ork Boy</option>
+                <option value="terminator">Space Marine Terminator</option>
+                <option value="gaunt">Tyranid Gaunt</option>
+                <option value="land_raider">Land Raider (Vehicle / Monster)</option>
+                <option value="custom">-- Custom Unit Profile --</option>
+            </select>
+            
+            <select id="unitSizeSelect" onchange="updateTargetStatsDisplay()"
+                    class="hidden flex-1 min-w-[150px] bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 outline-none focus:border-rose-500 transition">
+            </select>
+        </div>
+        <div id="targetStatsDisplay" class="text-xs font-bold text-zinc-400 tracking-wide">
+            Raw Mode: Outputting aggregated save values directly.
+        </div>
+
+        <div class="bg-zinc-900 p-3 rounded-lg border border-dashed border-rose-500/30 space-y-3 hidden" id="customUnitPanel">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Name</label>
+                    <input type="text" id="custName" value="Custom Target" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Toughness (T)</label>
+                    <input type="number" id="custT" value="4" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Save (Sv+)</label>
+                    <input type="number" id="custSv" value="3" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Invul (Inv+)</label>
+                    <input type="number" id="custInv" value="0" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Wounds (W)</label>
+                    <input type="number" id="custW" value="2" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Classification</label>
+                    <select id="custType" onchange="toggleCustomSizeField()" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                        <option value="squad" selected>Infantry Squad</option>
+                        <option value="single">Vehicle / Monster</option>
+                    </select>
+                </div>
+                <div id="custSizeDiv">
+                    <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Model Count</label>
+                    <input type="number" id="custSize" value="5" class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="weaponsContainer" class="space-y-4"></div>
+
+    <button onclick="addWeaponCard()" 
+            class="w-full bg-zinc-800/40 border border-dashed border-amber-500/40 text-amber-500 hover:bg-zinc-800 font-bold py-3 px-4 rounded-xl transition duration-150 flex items-center justify-center gap-2 text-sm tracking-wide">
+        <span>+</span> Add Weapon Profile
+    </button>
+
+    <div class="grid grid-cols-2 gap-4">
+        <button onclick="executeMasterPipeline(1)" class="bg-amber-500 hover:bg-amber-600 text-zinc-950 font-black text-xs md:text-sm uppercase tracking-wider py-4 px-4 rounded-xl transition duration-150 shadow-lg">
+            Resolve Single Salvo
+        </button>
+        <button onclick="executeMasterPipeline(5)" class="bg-cyan-500 hover:bg-cyan-600 text-zinc-950 font-black text-xs md:text-sm uppercase tracking-wider py-4 px-4 rounded-xl transition duration-150 shadow-lg">
+            Simulate 5-Round Game
+        </button>
+    </div>
+
+    <div class="results-container space-y-4 hidden" id="resultsContainer">
+        <div id="targetStatusDashboard"></div>
+
+        <label id="allocationLabel" class="block text-xs font-black uppercase text-zinc-400 tracking-widest mt-6">
+            Weapon Performance Profiles
+        </label>
+        
+        <div id="allocationBlocksContainer" class="space-y-3"></div>
+
+        <label class="block text-xs font-black uppercase text-zinc-500 tracking-widest mt-4">Combat Diagnostics Log</label>
+        <div class="bg-zinc-950 border border-zinc-800/80 p-4 rounded-xl font-mono text-xs text-zinc-400 h-32 overflow-y-auto space-y-1 shadow-inner leading-relaxed" id="combatLog"></div>
+    </div>
+</div>
+
+<script>
+    let weaponCounter = 0;
+
+    const TARGET_PROFILES = {
+        intercessor: { name: "Space Marine Intercessor", t: 4, sv: 3, inv: 0, w: 2, isSingleModel: false, halfSize: 5, fullSize: 10 },
+        ork_boy: { name: "Ork Boy", t: 5, sv: 5, inv: 0, w: 1, isSingleModel: false, halfSize: 10, fullSize: 20 },
+        terminator: { name: "Space Marine Terminator", t: 5, sv: 2, inv: 4, w: 3, isSingleModel: false, halfSize: 5, fullSize: 10 },
+        gaunt: { name: "Tyranid Gaunt", t: 3, sv: 5, inv: 0, w: 1, isSingleModel: false, halfSize: 10, fullSize: 20 },
+        land_raider: { name: "Land Raider", t: 12, sv: 2, inv: 0, w: 16, isSingleModel: true, halfSize: 1, fullSize: 1 }
+    };
+
+    function toggleCustomSizeField() {
+        const type = document.getElementById('custType').value;
+        document.getElementById('custSizeDiv').style.display = (type === 'single') ? 'none' : 'block';
+    }
+
+    function updateTargetStatsDisplay() {
+        const key = document.getElementById('targetUnitSelect').value;
+        const sizeSelect = document.getElementById('unitSizeSelect');
+        const panel = document.getElementById('customUnitPanel');
+        
+        if (key === 'custom') {
+            panel.classList.remove('hidden');
+            sizeSelect.classList.add('hidden');
+            toggleCustomSizeField();
+            document.getElementById('targetStatsDisplay').innerHTML = "Custom parameters loaded. Define defensive attributes below.";
+        } else if (key === 'none') {
+            panel.classList.add('hidden');
+            sizeSelect.classList.add('hidden');
+            document.getElementById('targetStatsDisplay').innerHTML = "Raw Mode: Outputting aggregated save values directly.";
+        } else {
+            panel.classList.add('hidden');
+            const p = TARGET_PROFILES[key];
+            
+            // Cleaned up logic: Toggle selector visibility dynamically using Tailwind layout layers
+            if (p.isSingleModel) {
+                sizeSelect.classList.add('hidden');
+            } else {
+                if (sizeSelect.classList.contains('hidden') || sizeSelect.dataset.unit !== key) {
+                    sizeSelect.innerHTML = `
+                        <option value="half" selected>Half Strength (${p.halfSize} models)</option>
+                        <option value="full">Full Strength (${p.fullSize} models)</option>
+                    `;
+                    sizeSelect.classList.remove('hidden');
+                    sizeSelect.dataset.unit = key;
+                }
+            }
+
+            const chosenSize = sizeSelect.value;
+            const modelCount = p.isSingleModel ? 1 : ((chosenSize === 'full') ? p.fullSize : p.halfSize);
+
+            let txt = `Target Attributes &rarr; Toughness: ${p.t} | Save: ${p.sv}+ `;
+            if (p.inv > 0) txt += `| Invul: ${p.inv}+ `;
+            txt += `| Wounds: ${p.w} | Active Size: ${modelCount} Model${modelCount>1?'s':''} ${p.isSingleModel?'(Vehicle/Monster)':''}`;
+            document.getElementById('targetStatsDisplay').innerHTML = txt;
+        }
+        syncWeaponInputFields();
+    }
+
+    function syncWeaponInputFields() {
+        const targetMode = document.getElementById('targetUnitSelect').value;
+        document.querySelectorAll('.w-strength-box').forEach(el => targetMode === 'none' ? el.classList.add('hidden') : el.classList.remove('hidden'));
+        document.querySelectorAll('.w-manual-wound-box').forEach(el => targetMode === 'none' ? el.classList.remove('hidden') : el.classList.add('hidden'));
+    }
+
+    function addWeaponCard(name = null, attacks = 6, hitTarget = 3, strength = 4, ap = 0, damage = 1, modifiers = {}) {
+        weaponCounter++;
+        const finalName = name ? name : `Weapon ${weaponCounter}`;
+        const container = document.getElementById('weaponsContainer');
+        
+        const hasCustomCritHit = modifiers.hasCustomCritHit || false;
+        const critHitVal = modifiers.critHit || 5;
+        const hasAnti = modifiers.hasAnti || false;
+        const critWoundVal = modifiers.critWound || 4;
+        const hitMod = modifiers.hitModifier || 0;
+        const woundMod = modifiers.woundModifier || 0;
+        const explicitWoundTarget = modifiers.explicitWoundTarget || 4;
+
+        const cardHtml = `
+            <div class="weapon-card bg-zinc-800/30 border border-zinc-800 rounded-xl p-4 space-y-4" id="weaponCard_${weaponCounter}">
+                <div class="flex justify-between items-center border-b border-zinc-800/80 pb-2">
+                    <input type="text" class="weapon-title-input font-bold text-amber-500 bg-transparent border-none outline-none text-sm w-3/4" value="${finalName}">
+                    <button onclick="this.closest('.weapon-card').remove()" class="text-xs text-rose-500 font-bold tracking-wide hover:text-rose-400 transition">Remove</button>
+                </div>
+                
+                <div class="grid grid-cols-5 gap-2">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Attacks</label>
+                        <input type="number" class="w-attacks w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100" value="${attacks}">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Hit (BS)</label>
+                        <select class="w-hitTarget w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                            ${[2,3,4,5,6].map(v => `<option value="${v}" ${v===hitTarget?'selected':''}>${v}+</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="w-strength-box">
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Strength</label>
+                        <input type="number" class="w-strength w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100" value="${strength}">
+                    </div>
+                    <div class="w-manual-wound-box hidden">
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Wound</label>
+                        <select class="w-explicitWound w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                            ${[2,3,4,5,6].map(v => `<option value="${v}" ${v===explicitWoundTarget?'selected':''}>${v}+</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">AP</label>
+                        <select class="w-ap w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100">
+                            ${[0,-1,-2,-3,-4].map(v => `<option value="${v}" ${v===ap?'selected':''}>${v}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-zinc-500 mb-1">Damage</label>
+                        <input type="number" class="w-damage w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm outline-none text-zinc-100" value="${damage}">
+                    </div>
+                </div>
+
+                <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-3">
+                    <div class="text-[10px] font-black uppercase text-blue-400 tracking-wider">Hit Modifiers</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <select class="w-hitReRoll bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs outline-none">
+                            <option value="none" ${modifiers.hitReRoll==='none'?'selected':''}>No Re-rolls</option>
+                            <option value="ones" ${modifiers.hitReRoll==='ones'?'selected':''}>Re-roll 1s</option>
+                            <option value="full" ${modifiers.hitReRoll==='full'?'selected':''}>Full Re-roll</option>
+                        </select>
+                        <select class="w-hitModifier bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs outline-none">
+                            <option value="0" ${hitMod===0?'selected':''}>Normal Roll</option>
+                            <option value="1" ${hitMod===1?'selected':''}>+1 to Hit</option>
+                            <option value="-1" ${hitMod===-1?'selected':''}>-1 to Hit</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-row text-xs flex flex-wrap gap-4 pt-1">
+                        <label class="checkbox-label"><input type="checkbox" class="w-torrent" ${modifiers.torrent?'checked':''}> [TORRENT]</label>
+                        <label class="checkbox-label"><input type="checkbox" class="w-lethal" ${modifiers.lethal?'checked':''}> [LETHAL HITS]</label>
+                        <label class="checkbox-label"><input type="checkbox" class="w-toggleCritHit" onchange="document.getElementById('critHitDiv_${weaponCounter}').style.display = this.checked ? 'block' : 'none'" ${hasCustomCritHit?'checked':''}> [CUSTOM CRIT]</label>
+                        <div class="ml-auto flex items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase text-zinc-500">[SUSTAINED]</span>
+                            <select class="w-sustained bg-zinc-800 border border-zinc-700 rounded text-xs px-1"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select>
+                        </div>
+                    </div>
+                    <div class="conditional-selector-box hidden bg-zinc-800/40 p-2 rounded border border-zinc-700/60 mt-2" id="critHitDiv_${weaponCounter}">
+                        <label class="block text-[10px] text-zinc-400 mb-1">Crit Hit Threshold</label>
+                        <select class="w-critHitThreshold bg-zinc-900 border border-zinc-700 rounded text-xs p-1"><option value="5">5+</option><option value="4">4+</option></select>
+                    </div>
+                </div>
+
+                <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/80 space-y-3">
+                    <div class="text-[10px] font-black uppercase text-purple-400 tracking-wider">Wound Modifiers</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <select class="w-woundReRoll bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs outline-none">
+                            <option value="none">No Re-rolls</option>
+                            <option value="ones">Re-roll 1s</option>
+                        </select>
+                        <select class="w-woundModifier bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs outline-none">
+                            <option value="0">Normal Roll</option>
+                            <option value="1">+1 to Wound</option>
+                            <option value="-1">-1 to Wound</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-row text-xs flex flex-wrap gap-4 pt-1">
+                        <label class="checkbox-label"><input type="checkbox" class="w-twinLinked" ${modifiers.twinLinked?'checked':''}> [TWIN-LINKED]</label>
+                        <label class="checkbox-label"><input type="checkbox" class="w-devastating" ${modifiers.devastating?'checked':''}> [DEVASTATING]</label>
+                        <label class="checkbox-label"><input type="checkbox" class="w-toggleAnti" onchange="document.getElementById('antiDiv_${weaponCounter}').style.display = this.checked ? 'block' : 'none'" ${hasAnti?'checked':''}> [ANTI-]</label>
+                    </div>
+                    <div class="conditional-selector-box hidden bg-zinc-800/40 p-2 rounded border border-zinc-700/60 mt-2" id="antiDiv_${weaponCounter}">
+                        <label class="block text-[10px] text-zinc-400 mb-1">Anti Threshold Target</label>
+                        <select class="w-critWoundThreshold bg-zinc-900 border border-zinc-700 rounded text-xs p-1"><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option><option value="5">5+</option></select>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', cardHtml);
+        syncWeaponInputFields();
+    }
+
+    // --- STORAGE ENGINES ---
+    function saveCurrentRoster() {
+        const rosterName = document.getElementById('rosterNameInput').value.trim();
+        if (!rosterName) return alert("Please enter a name for your Roster before saving.");
+        const cards = document.querySelectorAll('.weapon-card');
+        if (cards.length === 0) return alert("Add at least one weapon profile to save.");
+
+        const rosterData = [];
+        cards.forEach(card => {
+            rosterData.push({
+                name: card.querySelector('.weapon-title-input').value,
+                attacks: parseInt(card.querySelector('.w-attacks').value),
+                hitTarget: parseInt(card.querySelector('.w-hitTarget').value),
+                strength: parseInt(card.querySelector('.w-strength').value),
+                ap: parseInt(card.querySelector('.w-ap').value),
+                damage: parseInt(card.querySelector('.w-damage').value),
+                modifiers: {
+                    explicitWoundTarget: parseInt(card.querySelector('.w-explicitWound').value),
+                    hitReRoll: card.querySelector('.w-hitReRoll').value,
+                    hitModifier: parseInt(card.querySelector('.w-hitModifier').value),
+                    hasCustomCritHit: card.querySelector('.w-toggleCritHit').checked,
+                    critHit: parseInt(card.querySelector('.w-critHitThreshold').value),
+                    torrent: card.querySelector('.w-torrent').checked,
+                    lethal: card.querySelector('.w-lethal').checked,
+                    sustained: parseInt(card.querySelector('.w-sustained').value),
+                    woundReRoll: card.querySelector('.w-woundReRoll').value,
+                    woundModifier: parseInt(card.querySelector('.w-woundModifier').value),
+                    hasAnti: card.querySelector('.w-toggleAnti').checked,
+                    critWound: parseInt(card.querySelector('.w-critWoundThreshold').value),
+                    twinLinked: card.querySelector('.w-twinLinked').checked,
+                    devastating: card.querySelector('.w-devastating').checked
+                }
+            });
+        });
+
+        let library = JSON.parse(localStorage.getItem('wh40k_rosters')) || {};
+        library[rosterName] = rosterData;
+        localStorage.setItem('wh40k_rosters', JSON.stringify(library));
+        alert(`Successfully saved "${rosterName}".`);
+        updateRosterDropdown();
+        document.getElementById('savedRostersSelect').value = rosterName;
+    }
+
+    function updateRosterDropdown() {
+        const select = document.getElementById('savedRostersSelect');
+        select.innerHTML = '<option value="" disabled selected>-- Load Saved Roster --</option>';
+        let library = JSON.parse(localStorage.getItem('wh40k_rosters')) || {};
+        Object.keys(library).forEach(name => {
+            const opt = document.createElement('option'); opt.value = name; opt.textContent = name;
+            select.appendChild(opt);
+        });
+    }
+
+    function loadSelectedRoster() {
+        const rosterName = document.getElementById('savedRostersSelect').value;
+        let library = JSON.parse(localStorage.getItem('wh40k_rosters')) || {};
+        if (!library[rosterName]) return;
+        document.getElementById('weaponsContainer').innerHTML = '';
+        weaponCounter = 0;
+        library[rosterName].forEach(w => {
+            addWeaponCard(w.name, w.attacks, w.hitTarget, w.strength, w.ap, w.damage, w.modifiers);
+        });
+        document.getElementById('rosterNameInput').value = rosterName;
+    }
+
+    // --- PIPELINE COMPILER LOOP ---
+    function rollD6() { return Math.floor(Math.random() * 6) + 1; }
+
+    function executeMasterPipeline(rounds = 1) {
+        const cards = document.querySelectorAll('.weapon-card');
+        if (cards.length === 0) return alert("Please build a weapon profile first.");
+
+        const targetKey = document.getElementById('targetUnitSelect').value;
+        let target = null;
+        let hasTarget = (targetKey !== 'none');
+        let totalModelsInUnit = 1;
+
+        if (targetKey === 'custom') {
+            const isSingle = document.getElementById('custType').value === 'single';
+            target = {
+                name: document.getElementById('custName').value || "Custom Unit",
+                t: parseInt(document.getElementById('custT').value) || 4,
+                sv: parseInt(document.getElementById('custSv').value) || 3,
+                inv: parseInt(document.getElementById('custInv').value) || 0,
+                w: parseInt(document.getElementById('custW').value) || 1,
+                isSingleModel: isSingle
+            };
+            totalModelsInUnit = isSingle ? 1 : parseInt(document.getElementById('custSize').value || 5);
+        } else if (hasTarget) {
+            target = TARGET_PROFILES[targetKey];
+            const sizeMode = document.getElementById('unitSizeSelect').value;
+            totalModelsInUnit = target.isSingleModel ? 1 : ((sizeMode === 'full') ? target.fullSize : target.halfSize);
+        }
+
+        let log = ["=== SIMULATION ATTACK LIFECYCLE ENGAGED ==="];
+
+        let activeModelsAlive = totalModelsInUnit;
+        let activeModelCurrentWounds = hasTarget ? target.w : 0;
+        let unitWipedOut = false;
+        let roundWipedIn = 0;
+
+        let weaponStats = [];
+        cards.forEach((card, idx) => {
+            const name = card.querySelector('.weapon-title-input').value || `Weapon Profile ${idx+1}`;
+            const strength = parseInt(card.querySelector('.w-strength').value) || 4;
+            const explicitWoundTarget = parseInt(card.querySelector('.w-explicitWound').value);
+
+            let calculatedWoundTarget = explicitWoundTarget;
+            if (hasTarget) {
+                if (strength >= target.t * 2) calculatedWoundTarget = 2;
+                else if (strength > target.t) calculatedWoundTarget = 3;
+                else if (strength === target.t) calculatedWoundTarget = 4;
+                else if (strength <= target.t / 2) calculatedWoundTarget = 6;
+                else if (strength < target.t) calculatedWoundTarget = 5;
+            }
+
+            weaponStats.push({
+                card: card, name: name, ap: parseInt(card.querySelector('.w-ap').value),
+                damage: parseInt(card.querySelector('.w-damage').value), strength: strength,
+                attacks: parseInt(card.querySelector('.w-attacks').value) || 0, woundTarget: calculatedWoundTarget,
+                isTorrent: card.querySelector('.w-torrent').checked, hitTarget: parseInt(card.querySelector('.w-hitTarget').value),
+                hitReRoll: card.querySelector('.w-hitReRoll').value, hitModifier: parseInt(card.querySelector('.w-hitModifier').value),
+                hasCustomCritHit: card.querySelector('.w-toggleCritHit').checked, critHitThreshold: card.querySelector('.w-toggleCritHit').checked ? parseInt(card.querySelector('.w-critHitThreshold').value) : 6,
+                hasLethal: card.querySelector('.w-lethal').checked, sustainedValue: parseInt(card.querySelector('.w-sustained').value),
+                woundReRoll: card.querySelector('.w-woundReRoll').value, woundModifier: parseInt(card.querySelector('.w-woundModifier').value),
+                isTwinLinked: card.querySelector('.w-twinLinked').checked, hasAnti: card.querySelector('.w-toggleAnti').checked,
+                critWoundThreshold: card.querySelector('.w-toggleAnti').checked ? parseInt(card.querySelector('.w-critWoundThreshold').value) : 6,
+                hasDevastating: card.querySelector('.w-devastating').checked,
+                totalNormal: 0, totalLethal: 0, totalDevastating: 0, totalFailed: 0, totalDamage: 0, totalAttacksThrown: 0, roundsActive: 0
+            });
+        });
+
+        // --- SEQUENTIAL ROUND LIFECYCLE ---
+        for (let r = 1; r <= rounds; r++) {
+            if (unitWipedOut) break;
+
+            weaponStats.forEach(w => {
+                if (unitWipedOut || w.attacks <= 0) return;
+                w.roundsActive++;
+                w.totalAttacksThrown += w.attacks;
+
+                let hitSuccesses = 0;
+                let lethalAutoWounds = 0;
+                let sustainedBonusHits = 0;
+
+                if (w.isTorrent) {
+                    hitSuccesses = w.attacks;
+                } else {
+                    for (let i = 0; i < w.attacks; i++) {
+                        let roll = rollD6();
+                        if ((w.hitReRoll === 'ones' && roll === 1) || (w.hitReRoll === 'full' && roll < w.hitTarget)) {
+                            roll = rollD6();
+                        }
+                        if (roll === 1) continue;
+
+                        if (roll === 6 || roll >= w.critHitThreshold) {
+                            if (w.hasLethal) lethalAutoWounds++;
+                            else hitSuccesses++;
+                            if (w.sustainedValue > 0) sustainedBonusHits += w.sustainedValue;
+                        } else {
+                            if ((roll + w.hitModifier) >= w.hitTarget) hitSuccesses++;
+                        }
+                    }
+                }
+
+                let activeWoundRollingPool = hitSuccesses + sustainedBonusHits;
+                let normalWoundSuccesses = 0;
+                let devastatingWoundSuccesses = 0;
+
+                for (let i = 0; i < activeWoundRollingPool; i++) {
+                    let roll = rollD6();
+                    if (w.isTwinLinked && roll < w.woundTarget) {
+                        roll = rollD6();
+                    } else if (w.woundReRoll === 'ones' && roll === 1) {
+                        roll = rollD6();
+                    }
+                    if (roll === 1) continue;
+
+                    if (roll === 6 || roll >= w.critWoundThreshold) {
+                        if (w.hasDevastating) devastatingWoundSuccesses++;
+                        else normalWoundSuccesses++;
+                    } else {
+                        if ((roll + w.woundModifier) >= w.woundTarget) normalWoundSuccesses++;
+                    }
+                }
+
+                w.totalNormal += normalWoundSuccesses;
+                w.totalLethal += lethalAutoWounds;
+                w.totalDevastating += devastatingWoundSuccesses;
+
+                if (hasTarget) {
+                    let incomingRegularDamageAttacks = []; 
+                    let totalSaveRollsToMake = normalWoundSuccesses + lethalAutoWounds;
+                    let modifiedSave = target.sv - w.ap; 
+                    let activeSaveTarget = target.inv > 0 ? Math.min(modifiedSave, target.inv) : modifiedSave;
+
+                    let failedSaves = 0;
+                    for (let i = 0; i < totalSaveRollsToMake; i++) {
+                        if (activeSaveTarget > 6) {
+                            failedSaves++;
+                            incomingRegularDamageAttacks.push(w.damage);
+                        } else {
+                            let roll = rollD6();
+                            if (roll < activeSaveTarget) {
+                                failedSaves++;
+                                incomingRegularDamageAttacks.push(w.damage);
+                            }
+                        }
+                    }
+                    w.totalFailed += failedSaves;
+
+                    let incomingDevastatingAttacks = Array(devastatingWoundSuccesses).fill(w.damage);
+                    let totalAssignedHits = [...incomingRegularDamageAttacks, ...incomingDevastatingAttacks];
+
+                    for (let h = 0; h < totalAssignedHits.length; h++) {
+                        if (unitWipedOut) break;
+                        let hitDmg = totalAssignedHits[h];
+                        let exactDamageApplied = Math.min(hitDmg, activeModelCurrentWounds);
+                        
+                        activeModelCurrentWounds -= exactDamageApplied;
+                        w.totalDamage += exactDamageApplied;
+
+                        if (activeModelCurrentWounds <= 0) {
+                            activeModelsAlive--;
+                            if (activeModelsAlive <= 0) {
+                                unitWipedOut = true;
+                                roundWipedIn = r;
+                                break;
+                            } else {
+                                activeModelCurrentWounds = target.w;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- DASHBOARD RENDER LAYER ---
+        const dashboard = document.getElementById('targetStatusDashboard');
+        dashboard.innerHTML = '';
+        
+        if (hasTarget) {
+            let cardClass = unitWipedOut ? 'destroyed' : 'survived';
+            let titleText = unitWipedOut ? 'Target Destroyed' : 'Target Survived';
+            let bodyText = "";
+
+            if (rounds === 5) {
+                bodyText = unitWipedOut ? 
+                    `The entire unit was completely eliminated in <strong>Round ${roundWipedIn}</strong> of the engagement.` :
+                    `The unit endured all 5 rounds! Surviving Models: <strong>${activeModelsAlive} / ${totalModelsInUnit}</strong> (${activeModelCurrentWounds} HP left on active model).`;
+            } else {
+                bodyText = unitWipedOut ? 
+                    `The single attack salvo completely wiped out the target unit!` :
+                    `Surviving Models: <strong>${activeModelsAlive} / ${totalModelsInUnit}</strong> (${activeModelCurrentWounds} HP remaining on active model).`;
+            }
+
+            dashboard.innerHTML = `
+                <div class="target-status-card ${cardClass === 'destroyed' ? 'bg-red-950 border-red-500 text-red-200' : 'bg-emerald-950 border-emerald-500 text-emerald-200'} border p-4 rounded-xl text-center mb-4">
+                    <h3 class="text-lg font-black tracking-wide uppercase mb-1">${titleText}</h3>
+                    <p class="text-sm opacity-90">${bodyText}</p>
+                </div>`;
+        }
+
+        // --- RENDER WEAPON BLOCKS ---
+        const blocksContainer = document.getElementById('allocationBlocksContainer');
+        blocksContainer.innerHTML = '';
+
+        weaponStats.forEach(w => {
+            let combinedGrandTotalSaves = w.totalNormal + w.totalLethal + w.totalDevastating;
+            if (combinedGrandTotalSaves === 0 && w.totalDamage === 0) return;
+
+            let conversionPercentage = (((combinedGrandTotalSaves / w.roundsActive) / w.attacks) * 100).toFixed(1);
+            let totalSavesForcedSum = w.totalNormal + w.totalLethal;
+
+            let html = `<div class="allocation-card has-target bg-zinc-800/60 border border-zinc-800 p-4 rounded-xl space-y-2">
+                            <div class="allocation-header flex justify-between font-bold text-sm text-zinc-100 border-b border-zinc-800 pb-2">
+                                <span class="text-amber-500">${w.name} <span class="bg-zinc-900 text-amber-500 text-[10px] border border-zinc-700 px-1.5 py-0.5 rounded ml-2 font-medium">Conversion: ${conversionPercentage}%</span></span>
+                                <span class="text-zinc-400 font-mono text-xs">AP: ${w.ap} \| D: ${w.damage}</span>
+                            </div>`;
+
+            if (hasTarget) {
+                html += `<div class="flex justify-between items-center text-sm font-black text-rose-400 bg-rose-950/20 px-2 py-1.5 border border-rose-950 rounded-lg">
+                            <span>Structural Damage Applied:</span>
+                            <span>${w.totalDamage} HP ${w.roundsActive > 1 ? `(Avg: ${(w.totalDamage/w.roundsActive).toFixed(1)}/rd)` : ''}</span>
+                         </div>
+                         <div class="flex justify-between text-xs pt-1"><span>Total Saves Forced (Armor/Invul):</span> <strong class="text-zinc-100">${totalSavesForcedSum}</strong></div>
+                         <div class="flex justify-between text-[11px] text-zinc-500 pl-3"><span>&bull; From Standard Wounds:</span> <span>${w.totalNormal}</span></div>
+                         <div class="flex justify-between text-[11px] text-zinc-500 pl-3"><span>&bull; From Lethal Hits:</span> <span class="text-emerald-500 font-medium">${w.totalLethal}</span></div>
+                         <div class="flex justify-between text-xs text-rose-500"><span>Total Saves Failed:</span> <span><strong>${w.totalFailed}</strong></span></div>`;
+                
+                if (w.totalDevastating > 0) {
+                    html += `<div class="flex justify-between text-xs text-purple-400 border-t border-dashed border-zinc-800 pt-2 mt-2"><span>Devastating Wounds (Bypassed Armor):</span> <strong>${w.totalDevastating}</strong></div>`;
+                }
+            } else {
+                html += `<div class="flex justify-between text-sm font-bold text-zinc-100"><span>Total Saving Throws Forced:</span> <span><strong>${totalSavesForcedSum}</strong> ${w.roundsActive > 1 ? `(Avg: ${(totalSavesForcedSum/5).toFixed(1)}/rd)` : ''}</span></div>
+                         <div class="flex justify-between text-xs text-zinc-500 pl-3"><span>&bull; From Standard Wounds:</span> <span>${w.totalNormal}</span></div>
+                         <div class="flex justify-between text-xs text-zinc-500 pl-3"><span>&bull; From Lethal Hits:</span> <span class="text-emerald-500">${w.totalLethal}</span></div>`;
+                if (w.totalDevastating > 0) {
+                    html += `<div class="flex justify-between text-xs text-purple-400 border-t border-dashed border-zinc-800 pt-2 mt-1"><span>Devastating Wounds (No Saves Allowed):</span> <span><strong>${w.totalDevastating}</strong> ${w.roundsActive > 1 ? `(Avg: ${(w.totalDevastating/5).toFixed(1)}/rd)` : ''}</span></div>`;
+                }
+            }
+
+            html += `</div>`;
+            blocksContainer.insertAdjacentHTML('beforeend', html);
+        });
+
+        if (blocksContainer.innerHTML === '') {
+            blocksContainer.innerHTML = `<div class="text-center text-zinc-500 text-sm py-4">All attacks failed to clear pipeline thresholds.</div>`;
+        }
+
+        document.getElementById('resultsContainer').classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
