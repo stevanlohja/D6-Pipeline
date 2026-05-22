@@ -34,29 +34,76 @@ const HIT_MOD_OPTS = [-1, 0, 1];
 const FNP_OPTS = [0, 6, 5, 4, 3];
 
 // ───────────────────────────────────────────────────────────────────
-//  Haptic feedback
-//  Android Chromium/Firefox via navigator.vibrate. iOS Safari blocks
-//  the Vibration API — the calls are silent no-ops there.
-//  Patterns intentionally short to feel like an OS tap, not a notification.
+//  Click sound (synthesized via Web Audio API)
+//  A short triangle-wave sweep with low gain — a "soft modern click."
+//  No external audio asset; tone shape is encoded in code so it can be
+//  tuned without re-recording. Context is created lazily on the first
+//  user gesture to comply with browser autoplay policies.
 // ───────────────────────────────────────────────────────────────────
 
-const HAPTIC_PATTERNS = {
-  tap:     8,              // any button press
-  select:  6,              // radio/checkbox toggle
-  salvo:   18,             // primary action — fire a salvo
-  destroy: [40, 60, 40],   // target unit wiped this salvo
-  reset:   [6, 30, 6],     // engagement cleared
-  warn:    [10, 20, 10],
-  error:   [10, 40, 10]
-};
+let _audioCtx = null;
+function getAudioCtx() {
+  if (_audioCtx) return _audioCtx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try { _audioCtx = new AC(); } catch (_) { return null; }
+  return _audioCtx;
+}
 
-function haptic(kind) {
-  if (typeof navigator === 'undefined' || !navigator.vibrate) return;
-  // Respect the OS-level "reduce motion" setting as an opt-out signal.
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const p = HAPTIC_PATTERNS[kind];
-  if (p == null) return;
-  try { navigator.vibrate(p); } catch (_) { /* ignore */ }
+function playClick() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const now = ctx.currentTime;
+
+  // ── Layer 1: tonal body — the deep "tock" ──
+  // Triangle sweep 500 → 180 Hz over 25 ms keeps the click rooted in the
+  // lower mids, like an iOS / Gboard keystroke. Lowpass at 1.2 kHz keeps
+  // any harmonics from poking through and brightening the sound.
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(500, now);
+  osc.frequency.exponentialRampToValueAtTime(180, now + 0.025);
+
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.0001, now);
+  oscGain.gain.linearRampToValueAtTime(0.09, now + 0.0005);
+  oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+
+  const oscLp = ctx.createBiquadFilter();
+  oscLp.type = 'lowpass';
+  oscLp.frequency.value = 1200;
+  oscLp.Q.value = 0.5;
+
+  osc.connect(oscLp).connect(oscGain).connect(ctx.destination);
+
+  // ── Layer 2: tap transient — the brief "finger touches glass" texture ──
+  // 8 ms of bandpassed white noise gives the body something to sit on top
+  // of so the click feels percussive rather than purely tonal.
+  const noiseDur = 0.008;
+  const noiseBuf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * noiseDur)), ctx.sampleRate);
+  const ndata = noiseBuf.getChannelData(0);
+  for (let i = 0; i < ndata.length; i++) ndata[i] = Math.random() * 2 - 1;
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuf;
+
+  const noiseBp = ctx.createBiquadFilter();
+  noiseBp.type = 'bandpass';
+  noiseBp.frequency.value = 700;
+  noiseBp.Q.value = 3;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.0001, now);
+  noiseGain.gain.linearRampToValueAtTime(0.04, now + 0.0003);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.008);
+
+  noiseSrc.connect(noiseBp).connect(noiseGain).connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.05);
+  noiseSrc.start(now);
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -126,8 +173,6 @@ function toast(msg, type = '') {
   el.textContent = msg;
   container.appendChild(el);
   setTimeout(() => el.remove(), 3000);
-  if (type === 'warn') haptic('warn');
-  else if (type === 'error') haptic('error');
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -988,10 +1033,7 @@ function resetEngagement() {
   const wasActive = engagement && engagement.salvosFired > 0;
   engagement = null;
   document.getElementById('resultsContainer').hidden = true;
-  if (wasActive) {
-    haptic('reset');
-    toast('Engagement reset');
-  }
+  if (wasActive) toast('Engagement reset');
 }
 
 function executeSalvo() {
@@ -1035,10 +1077,6 @@ function executeSalvo() {
 
   engagement.salvosFired += 1;
   engagement.log.push(`<span class="round">— Salvo ${engagement.salvosFired} —</span>`);
-  // Fired-the-shot haptic. If the unit is wiped this salvo, an additional
-  // "destroy" pattern fires below — vibrate() replaces the active pattern,
-  // so users feel the bigger destroy buzz rather than this opener.
-  haptic('salvo');
 
   weapons.forEach((w) => {
     if (engagement.modelState.unitWipedOut) return;
@@ -1075,7 +1113,6 @@ function executeSalvo() {
 
   if (engagement.modelState.unitWipedOut && engagement.salvoWipedIn === 0) {
     engagement.salvoWipedIn = engagement.salvosFired;
-    haptic('destroy');
   }
 
   renderEngagement();
@@ -1283,20 +1320,18 @@ function populateTargetDropdown() {
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', onPillChange);
 
-  // Light haptic on any button press. Capture phase so this tap fires
-  // BEFORE the element's onclick handler runs — any stronger pattern
-  // (salvo, destroy, reset) issued by the handler then replaces it.
+  // Soft click sound on any selection action. Capture phase keeps the tone
+  // tightly coupled to the press, before the handler runs.
   document.addEventListener('click', (e) => {
     const btn = e.target && e.target.closest && e.target.closest('button');
-    if (btn) haptic('tap');
+    if (btn) playClick();
   }, true);
 
-  // Subtler bump when a radio/checkbox toggles state. Bubble phase is fine
-  // — these don't compete with stronger patterns.
+  // Same sound when a radio/checkbox toggles or a dropdown selection lands.
   document.addEventListener('change', (e) => {
     const t = e.target;
-    if (t && t.matches && t.matches('input[type="radio"], input[type="checkbox"]')) {
-      haptic('select');
+    if (t && t.matches && t.matches('input[type="radio"], input[type="checkbox"], select')) {
+      playClick();
     }
   });
 
