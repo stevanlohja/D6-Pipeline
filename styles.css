@@ -179,6 +179,56 @@ body {
   font-family: ui-monospace, monospace;
 }
 
+/* Inline "× N models" stepper attached to the Attacks field label. Each
+   model rolls the Attacks expression independently per Core Rules; this
+   control sets how many models in the unit are firing this weapon. */
+.dice-input-labelrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.models-firing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  color: #a1a1aa;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.models-firing .mf-x { color: #71717a; padding-right: 0.125rem; }
+.models-firing .mf-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  border-radius: 0.25rem;
+  color: #d4d4d8;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0;
+}
+.models-firing .mf-btn:hover { background: #27272a; color: #fbbf24; }
+.models-firing .mf-input {
+  width: 32px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fbbf24;
+  font-weight: 700;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  -moz-appearance: textfield;
+}
+.models-firing .mf-input::-webkit-outer-spin-button,
+.models-firing .mf-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.models-firing .mf-label { color: #71717a; font-size: 0.625rem; }
+
 /* ===== Stepper (for integer fields like Strength, Wounds) ===== */
 .stepper {
   display: flex;
@@ -600,6 +650,12 @@ body {
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
 }
+/* Grid items default to min-width:auto, which lets descendants force the
+   track wider than 1fr (the Damage column's chip row was overflowing the
+   weapon-card border on narrow viewports). Forcing min-width:0 lets the
+   column shrink and the chips wrap inside its bounds. */
+.grid-2 > *, .grid-3 > * { min-width: 0; }
+.dice-input { min-width: 0; }
 @media (max-width: 380px) {
   .grid-2 { grid-template-columns: 1fr; }
 }

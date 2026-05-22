@@ -9,16 +9,19 @@
 //  Constants
 // ───────────────────────────────────────────────────────────────────
 
-const TARGET_PROFILES = {
-  intercessor: { name: 'Space Marine Intercessor', t: 4,  sv: 3, inv: 0, w: 2,  isSingleModel: false, halfSize: 5,  fullSize: 10 },
-  ork_boy:     { name: 'Ork Boy',                  t: 5,  sv: 6, inv: 0, w: 1,  isSingleModel: false, halfSize: 10, fullSize: 20 },
-  terminator:  { name: 'Space Marine Terminator',  t: 5,  sv: 2, inv: 4, w: 3,  isSingleModel: false, halfSize: 5,  fullSize: 10 },
-  gaunt:       { name: 'Tyranid Gaunt',            t: 3,  sv: 5, inv: 0, w: 1,  isSingleModel: false, halfSize: 10, fullSize: 20 },
-  custodian:   { name: 'Custodian Guard',          t: 6,  sv: 2, inv: 4, w: 3,  isSingleModel: false, halfSize: 4,  fullSize: 5 },
-  necron_warrior: { name: 'Necron Warrior',        t: 4,  sv: 4, inv: 0, w: 1,  isSingleModel: false, halfSize: 10, fullSize: 20 },
-  land_raider: { name: 'Land Raider',              t: 12, sv: 2, inv: 0, w: 16, isSingleModel: true,  halfSize: 1,  fullSize: 1 },
-  knight:      { name: 'Imperial Knight',          t: 12, sv: 3, inv: 5, w: 22, isSingleModel: true,  halfSize: 1,  fullSize: 1 }
-};
+// Target presets come from the swappable data layer (data/sample-targets.js)
+// so the engine stays faction-agnostic per CLAUDE.md §5.
+const TARGET_PROFILES = (() => {
+  const list = (typeof window !== 'undefined' && window.SAMPLE_TARGETS) || [];
+  const out = {};
+  for (const p of list) {
+    out[p.key] = {
+      name: p.label, t: p.t, sv: p.sv, inv: p.inv, w: p.w,
+      isSingleModel: p.isSingleModel, halfSize: p.halfSize, fullSize: p.fullSize
+    };
+  }
+  return out;
+})();
 
 const ATTACK_CHIPS = ['1', '2', '3', '4', '5', '6', 'D3', 'D6', 'D6+1', '2D6'];
 const DAMAGE_CHIPS = ['1', '2', '3', 'D3', 'D3+3', 'D6', 'D6+1', 'D6+2', '2D6'];
@@ -262,11 +265,14 @@ function onPillChange(e) {
 //  Dice input builder
 // ───────────────────────────────────────────────────────────────────
 
-function buildDiceInput(cls, value, chips, label) {
+function buildDiceInput(cls, value, chips, label, labelExtras = '') {
   const safeId = `${cls}_${Math.random().toString(36).slice(2, 8)}`;
+  const labelHtml = labelExtras
+    ? `<div class="field-label dice-input-labelrow"><span>${label}</span>${labelExtras}</div>`
+    : `<label class="field-label">${label}</label>`;
   return `
     <div class="dice-input" data-dice-input="${safeId}">
-      <label class="field-label">${label}</label>
+      ${labelHtml}
       <input type="text" class="dice-input-field ${cls}" value="${value}"
              oninput="onDiceInputChange(this)" autocomplete="off"
              inputmode="text" spellcheck="false">
@@ -278,12 +284,38 @@ function buildDiceInput(cls, value, chips, label) {
   `;
 }
 
+function buildModelsFiring(value) {
+  const v = Math.max(1, parseInt(value, 10) || 1);
+  return `<span class="models-firing" title="How many models in this unit are firing this weapon. Each model rolls its own Attacks dice.">
+    <span class="mf-x">×</span>
+    <button type="button" class="mf-btn" onclick="adjustModels(this,-1)" aria-label="Fewer models">−</button>
+    <input type="number" class="mf-input w-models" min="1" max="30" value="${v}" oninput="onModelsInputChange(this)">
+    <button type="button" class="mf-btn" onclick="adjustModels(this,1)" aria-label="More models">+</button>
+    <span class="mf-label">models</span>
+  </span>`;
+}
+
 function describeDice(expr) {
   if (!isValidDiceExpr(expr)) return 'Invalid — try 6, D6, 2D6, D6+1';
   const avg = avgDiceExpr(expr);
   const p = parseDice(expr);
   if (p.count === 0) return `fixed ${p.mod}`;
   return `avg ${formatAvg(avg)} (random)`;
+}
+
+// Attacks meta is multiplied by models firing — each model rolls
+// independently, so total expected attacks = models × avg(expr).
+function describeAttacks(expr, models) {
+  if (!isValidDiceExpr(expr)) return 'Invalid — try 6, D6, 2D6, D6+1';
+  const avg = avgDiceExpr(expr);
+  const p = parseDice(expr);
+  const total = avg * models;
+  if (models <= 1) {
+    if (p.count === 0) return `fixed ${p.mod}`;
+    return `avg ${formatAvg(avg)} (random)`;
+  }
+  if (p.count === 0) return `${models} × ${p.mod} = ${total}`;
+  return `${models} × ${expr} → avg ${formatAvg(total)}`;
 }
 
 function setDiceValue(chipBtn, value) {
@@ -300,11 +332,40 @@ function onDiceInputChange(input) {
   const valid = isValidDiceExpr(input.value);
   input.dataset.invalid = String(!valid);
   const meta = wrap.querySelector('[data-dice-meta]');
-  if (meta) meta.textContent = describeDice(input.value);
+  if (meta) {
+    const isAttacks = input.classList.contains('w-attacks');
+    if (isAttacks) {
+      const card = input.closest('.weapon-card');
+      const models = Math.max(1, parseInt(card?.querySelector('.w-models')?.value, 10) || 1);
+      meta.textContent = describeAttacks(input.value, models);
+    } else {
+      meta.textContent = describeDice(input.value);
+    }
+  }
   // Active chip highlight
   wrap.querySelectorAll('.dice-chip').forEach(c => {
     c.dataset.active = String(c.dataset.value.toUpperCase() === String(input.value).trim().toUpperCase());
   });
+}
+
+function onModelsInputChange(input) {
+  let v = parseInt(input.value, 10);
+  if (!Number.isFinite(v)) v = 1;
+  v = Math.max(1, Math.min(30, v));
+  if (String(v) !== input.value) input.value = String(v);
+  // Refresh the Attacks meta in this card to reflect new models count.
+  const card = input.closest('.weapon-card');
+  const attacksInput = card?.querySelector('.w-attacks');
+  if (attacksInput) onDiceInputChange(attacksInput);
+}
+
+function adjustModels(btn, delta) {
+  const wrap = btn.closest('.models-firing');
+  const input = wrap?.querySelector('.mf-input');
+  if (!input) return;
+  const next = (parseInt(input.value, 10) || 1) + delta;
+  input.value = String(Math.max(1, Math.min(30, next)));
+  onModelsInputChange(input);
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -341,6 +402,7 @@ function addWeaponCard(state = {}) {
   const s = {
     name: `Weapon ${id}`,
     attacks: '4',
+    models: 1,
     hitTarget: 3,
     strength: 4,
     ap: 0,
@@ -375,10 +437,8 @@ function addWeaponCard(state = {}) {
         <button class="weapon-action-btn" title="Remove weapon" onclick="this.closest('.weapon-card').remove()">×</button>
       </div>
 
-      <div class="grid-2">
-        <div>${buildDiceInput('w-attacks', s.attacks, ATTACK_CHIPS, 'Attacks')}</div>
-        <div>${buildDiceInput('w-damage', s.damage, DAMAGE_CHIPS, 'Damage')}</div>
-      </div>
+      <div>${buildDiceInput('w-attacks', s.attacks, ATTACK_CHIPS, 'Attacks', buildModelsFiring(s.models))}</div>
+      <div>${buildDiceInput('w-damage', s.damage, DAMAGE_CHIPS, 'Damage')}</div>
 
       <div>
         <label class="field-label">Hit (BS)</label>
@@ -505,6 +565,7 @@ function migrateLegacyWeapon(state) {
   const m = state.modifiers || {};
   const result = { name: state.name };
   if ('attacks' in state) result.attacks = String(state.attacks);
+  if ('models' in state) result.models = Math.max(1, parseInt(state.models, 10) || 1);
   if ('hitTarget' in state) result.hitTarget = state.hitTarget;
   if ('strength' in state) result.strength = state.strength;
   if ('ap' in state) result.ap = state.ap;
@@ -539,6 +600,7 @@ function readWeaponState(card) {
   return {
     name: card.querySelector('.w-name').value || `Weapon ${id}`,
     attacks: card.querySelector('.w-attacks').value,
+    models: Math.max(1, parseInt(card.querySelector('.w-models')?.value, 10) || 1),
     damage: card.querySelector('.w-damage').value,
     hitTarget: parseInt(getCheckedKeypad(`bs_${id}`) || '3', 10),
     strength: parseInt(card.querySelector('.w-strength').value, 10) || 4,
@@ -592,6 +654,7 @@ function toLegacyWeaponShape(s) {
   return {
     name: s.name,
     attacks: s.attacks,
+    models: s.models,
     hitTarget: s.hitTarget,
     strength: s.strength,
     ap: s.ap,
@@ -707,16 +770,26 @@ function resolveWeaponRound(w, ctx, log) {
     -1, 1
   );
 
-  // Roll attacks (variable dice)
-  let attacks = rollDiceExpr(w.attacks);
-  if (w.blast && hasTarget && target.modelCount) {
-    attacks += Math.floor(target.modelCount / 5);
+  // Each model firing the weapon rolls its own Attacks expression
+  // (Core Rules: characteristics are rolled per-model when random). [BLAST]
+  // adds its bonus to each firing model's Attacks roll.
+  const modelsFiring = Math.max(1, w.models || 1);
+  const blastBonus = (w.blast && hasTarget && target.modelCount)
+    ? Math.floor(target.modelCount / 5) : 0;
+  let attacks = 0;
+  for (let m = 0; m < modelsFiring; m++) {
+    attacks += rollDiceExpr(w.attacks) + blastBonus;
   }
   if (attacks <= 0) return null;
 
-  // Roll damage characteristic for this volley
-  let baseDamage = rollDiceExpr(w.damage);
-  if (w.melta > 0 && w.inMeltaRange) baseDamage += w.melta;
+  // Per Fast Dice Rolling rules, random damage must be rolled per attack
+  // (overkill is lost, so the order of allocation matters). Resolved
+  // per-bundle below; this helper centralizes the roll + Melta bonus.
+  const rollAttackDamage = () => {
+    let d = rollDiceExpr(w.damage);
+    if (w.melta > 0 && w.inMeltaRange) d += w.melta;
+    return d;
+  };
 
   // ─── HIT PHASE ─────────────────────────────────────────────────
   let hits = 0;
@@ -801,17 +874,18 @@ function resolveWeaponRound(w, ctx, log) {
   for (let i = 0; i < saveAttempts; i++) {
     if (saveTarget > 6) {
       result.failedSaves++;
-      damageBundles.push({ damage: baseDamage, mortal: false });
+      damageBundles.push({ damage: rollAttackDamage(), mortal: false });
     } else {
       const r = rollD6();
-      if (r < saveTarget) {
+      // Unmodified 1 always fails per Core Rules; otherwise compare to target.
+      if (r === 1 || r < saveTarget) {
         result.failedSaves++;
-        damageBundles.push({ damage: baseDamage, mortal: false });
+        damageBundles.push({ damage: rollAttackDamage(), mortal: false });
       }
     }
   }
   for (let i = 0; i < devastatingWounds; i++) {
-    damageBundles.push({ damage: baseDamage, mortal: true });
+    damageBundles.push({ damage: rollAttackDamage(), mortal: true });
   }
 
   // ─── DAMAGE ALLOCATION ────────────────────────────────────────
@@ -841,10 +915,55 @@ function resolveWeaponRound(w, ctx, log) {
 }
 
 // ───────────────────────────────────────────────────────────────────
-//  Pipeline runner (single-run or multi-iteration)
+//  Engagement state (persists across salvos)
 // ───────────────────────────────────────────────────────────────────
 
-function executePipeline(rounds = 1, iterations = 1) {
+// One engagement = one unit being shot at by one roster, across N salvos.
+// Persists between executeSalvo() calls so each click advances damage on
+// the same target rather than resetting. Cleared by resetEngagement() or
+// by switching to a different target unit.
+let engagement = null;
+
+function currentTargetKey() {
+  const key = document.getElementById('targetUnitSelect')?.value || 'none';
+  const size = document.getElementById('unitSizeSelect')?.value || '';
+  return `${key}:${size}`;
+}
+
+function makeAggregateSlot(w) {
+  return {
+    name: w.name, ap: w.ap, damage: w.damage,
+    attacks: 0, hits: 0, lethal: 0, sustained: 0, critHits: 0,
+    normalWounds: 0, devWounds: 0, savesAttempted: 0, failedSaves: 0,
+    totalDamage: 0, modelsKilled: 0, salvosActive: 0
+  };
+}
+
+function newEngagement(target, hasTarget) {
+  return {
+    target,
+    hasTarget,
+    targetKey: currentTargetKey(),
+    modelState: {
+      currentWounds: hasTarget ? target.w : 0,
+      aliveCount: hasTarget ? target.modelCount : 0,
+      unitWipedOut: false
+    },
+    aggregateByWeapon: new Map(),   // weaponCardId -> aggregate slot
+    salvosFired: 0,
+    salvoWipedIn: 0,
+    log: []
+  };
+}
+
+function resetEngagement() {
+  const wasActive = engagement && engagement.salvosFired > 0;
+  engagement = null;
+  document.getElementById('resultsContainer').hidden = true;
+  if (wasActive) toast('Engagement reset');
+}
+
+function executeSalvo() {
   const cards = document.querySelectorAll('.weapon-card');
   if (!cards.length) return toast('Add at least one weapon first', 'warn');
 
@@ -856,135 +975,124 @@ function executePipeline(rounds = 1, iterations = 1) {
     }
   }
 
-  const weapons = [...cards].map(c => readWeaponState(c));
-  const { hasTarget, target } = readTargetState();
-  const isAggregate = iterations > 1;
-
-  // Accumulators (over iterations)
-  const aggregate = weapons.map(w => ({
-    name: w.name, ap: w.ap, damage: w.damage,
-    attacks: 0, hits: 0, lethal: 0, sustained: 0, critHits: 0,
-    normalWounds: 0, devWounds: 0, savesAttempted: 0, failedSaves: 0,
-    totalDamage: 0, modelsKilled: 0, roundsActive: 0
+  const weapons = [...cards].map(c => ({
+    ...readWeaponState(c),
+    _cardId: c.dataset.weaponId
   }));
+  const { hasTarget, target } = readTargetState();
 
-  let aggUnitWiped = 0;
-  let aggSurvivingModels = 0;
-  let aggSurvivingHp = 0;
-  let aggRoundWipedIn = 0;
-
-  const log = [];
-  if (isAggregate) log.push(`=== Aggregate over ${iterations} runs ===`);
-
-  for (let iter = 0; iter < iterations; iter++) {
-    const modelState = {
-      currentWounds: hasTarget ? target.w : 0,
-      aliveCount: hasTarget ? target.modelCount : 0,
-      unitWipedOut: false
-    };
-    let roundWipedIn = 0;
-
-    if (iter === 0 && !isAggregate) log.push(`=== Engagement start (${rounds} round${rounds > 1 ? 's' : ''}) ===`);
-
-    for (let r = 1; r <= rounds; r++) {
-      if (modelState.unitWipedOut) break;
-      if (iter === 0 && !isAggregate) log.push(`<span class="round">— Round ${r} —</span>`);
-
-      weapons.forEach((w, idx) => {
-        if (modelState.unitWipedOut) return;
-        const result = resolveWeaponRound(w, { target, hasTarget, modelState }, iter === 0 && !isAggregate ? log : []);
-        if (!result) return;
-        const agg = aggregate[idx];
-        agg.attacks += result.attacks;
-        agg.hits += result.hits;
-        agg.lethal += result.lethalAutoWounds;
-        agg.sustained += result.sustainedBonusHits;
-        agg.critHits += result.critHits;
-        agg.normalWounds += result.normalWounds;
-        agg.devWounds += result.devastatingWounds;
-        agg.savesAttempted += result.savesAttempted;
-        agg.failedSaves += result.failedSaves;
-        agg.totalDamage += result.totalDamage;
-        agg.modelsKilled += result.modelsKilled;
-        agg.roundsActive += 1;
-      });
-
-      if (modelState.unitWipedOut) { roundWipedIn = r; break; }
-    }
-
-    if (modelState.unitWipedOut) {
-      aggUnitWiped += 1;
-      aggRoundWipedIn += roundWipedIn;
-    } else {
-      aggSurvivingModels += modelState.aliveCount;
-      aggSurvivingHp += modelState.currentWounds;
-    }
+  // Start a fresh engagement on first salvo, or if the target unit changed.
+  // Defensive modifier tweaks (cover, FNP, etc.) do NOT reset — they apply
+  // to the next salvo, like a tabletop player activating a stratagem.
+  const targetKeyNow = currentTargetKey();
+  const targetUnitChanged = engagement
+    && (engagement.targetKey !== targetKeyNow || engagement.hasTarget !== hasTarget);
+  if (!engagement || targetUnitChanged) {
+    if (targetUnitChanged) toast('New target — engagement reset', 'warn');
+    engagement = newEngagement(target, hasTarget);
+  } else {
+    // Update target snapshot so live modifier changes take effect.
+    engagement.target = target;
+    engagement.hasTarget = hasTarget;
   }
 
-  renderResults({
-    aggregate, hasTarget, target, rounds, iterations,
-    aggUnitWiped, aggSurvivingModels, aggSurvivingHp, aggRoundWipedIn,
-    log
+  if (engagement.modelState.unitWipedOut) {
+    toast('Target already destroyed — press Reset for a fresh unit', 'warn');
+    renderEngagement();
+    return;
+  }
+
+  engagement.salvosFired += 1;
+  engagement.log.push(`<span class="round">— Salvo ${engagement.salvosFired} —</span>`);
+
+  weapons.forEach((w) => {
+    if (engagement.modelState.unitWipedOut) return;
+
+    let agg = engagement.aggregateByWeapon.get(w._cardId);
+    if (!agg) {
+      agg = makeAggregateSlot(w);
+      engagement.aggregateByWeapon.set(w._cardId, agg);
+    } else {
+      // Refresh display fields in case user edited them mid-engagement.
+      agg.name = w.name; agg.ap = w.ap; agg.damage = w.damage;
+    }
+
+    const result = resolveWeaponRound(
+      w,
+      { target: engagement.target, hasTarget: engagement.hasTarget, modelState: engagement.modelState },
+      engagement.log
+    );
+    if (!result) return;
+
+    agg.attacks       += result.attacks;
+    agg.hits          += result.hits;
+    agg.lethal        += result.lethalAutoWounds;
+    agg.sustained     += result.sustainedBonusHits;
+    agg.critHits      += result.critHits;
+    agg.normalWounds  += result.normalWounds;
+    agg.devWounds     += result.devastatingWounds;
+    agg.savesAttempted += result.savesAttempted;
+    agg.failedSaves   += result.failedSaves;
+    agg.totalDamage   += result.totalDamage;
+    agg.modelsKilled  += result.modelsKilled;
+    agg.salvosActive  += 1;
   });
+
+  if (engagement.modelState.unitWipedOut && engagement.salvoWipedIn === 0) {
+    engagement.salvoWipedIn = engagement.salvosFired;
+  }
+
+  renderEngagement();
 }
 
 // ───────────────────────────────────────────────────────────────────
-//  Results rendering
+//  Engagement rendering
 // ───────────────────────────────────────────────────────────────────
 
-function renderResults(ctx) {
-  const { aggregate, hasTarget, target, rounds, iterations,
-          aggUnitWiped, aggSurvivingModels, aggSurvivingHp, aggRoundWipedIn, log } = ctx;
-  const isAggregate = iterations > 1;
+function renderEngagement() {
+  if (!engagement) return;
+  const { aggregateByWeapon, hasTarget, target, modelState, salvosFired, salvoWipedIn, log } = engagement;
   document.getElementById('resultsContainer').hidden = false;
 
   // ── Target status dashboard ──
   const dashboard = document.getElementById('targetStatusDashboard');
-  dashboard.innerHTML = '';
+  const salvoLabel = `${salvosFired} salvo${salvosFired !== 1 ? 's' : ''} fired`;
+
   if (hasTarget) {
-    if (isAggregate) {
-      const wipeRate = (aggUnitWiped / iterations * 100).toFixed(1);
-      const avgKillRound = aggUnitWiped > 0 ? (aggRoundWipedIn / aggUnitWiped).toFixed(1) : '—';
-      const survivedIters = iterations - aggUnitWiped;
-      const avgSurvivors = survivedIters > 0 ? (aggSurvivingModels / survivedIters).toFixed(1) : '—';
-      dashboard.innerHTML = `
-        <div class="target-status-card ${aggUnitWiped > iterations / 2 ? 'destroyed' : 'survived'}">
-          <h3>${target.name}</h3>
-          <p class="small">Wipe-out rate over ${iterations} sims: <strong>${wipeRate}%</strong></p>
-          <p class="small">Avg wipe round: <strong>${avgKillRound}</strong> · Avg survivors when not wiped: <strong>${avgSurvivors}</strong></p>
-        </div>`;
-    } else {
-      const wiped = aggUnitWiped > 0;
-      const cardCls = wiped ? 'destroyed' : 'survived';
-      const title = wiped ? 'Target Destroyed' : 'Target Survived';
-      let body;
-      if (rounds === 1) {
-        body = wiped ? 'The single salvo completely wiped out the target unit.'
-                     : `Surviving models: <strong>${aggSurvivingModels} / ${target.modelCount}</strong> (${aggSurvivingHp} HP on active model)`;
-      } else {
-        body = wiped ? `The entire unit was eliminated in <strong>Round ${aggRoundWipedIn}</strong>.`
-                     : `Endured all ${rounds} rounds. Survivors: <strong>${aggSurvivingModels} / ${target.modelCount}</strong> (${aggSurvivingHp} HP on active model)`;
-      }
-      dashboard.innerHTML = `
-        <div class="target-status-card ${cardCls}">
-          <h3>${title}</h3>
-          <p class="small">${body}</p>
-        </div>`;
-    }
+    const wiped = modelState.unitWipedOut;
+    const cardCls = wiped ? 'destroyed' : 'survived';
+    const title = wiped ? 'Target Destroyed' : 'Engagement Active';
+    const body = wiped
+      ? `Wiped out in <strong>Salvo ${salvoWipedIn}</strong> · ${target.modelCount} / ${target.modelCount} models down · ${salvoLabel}`
+      : `<strong>${modelState.aliveCount} / ${target.modelCount}</strong> models · ${modelState.currentWounds} HP on lead model · ${salvoLabel}`;
+    dashboard.innerHTML = `
+      <div class="target-status-card ${cardCls}">
+        <h3>${escapeHtml(target.name)} — ${title}</h3>
+        <p class="small">${body}</p>
+      </div>`;
+  } else {
+    dashboard.innerHTML = `
+      <div class="target-status-card survived">
+        <h3>Raw Mode</h3>
+        <p class="small">No target — cumulative hit/wound totals across ${salvoLabel}.</p>
+      </div>`;
   }
 
-  // ── Per-weapon breakdown ──
+  // ── Per-weapon breakdown (only weapons still present in the roster) ──
   const blocks = document.getElementById('allocationBlocksContainer');
   blocks.innerHTML = '';
+  const currentWeaponIds = new Set(
+    [...document.querySelectorAll('.weapon-card')].map(c => c.dataset.weaponId)
+  );
 
   let anyOutput = false;
-  aggregate.forEach(a => {
+  aggregateByWeapon.forEach((a, weaponId) => {
+    if (!currentWeaponIds.has(weaponId)) return;
     const totalWoundSuccesses = a.normalWounds + a.lethal + a.devWounds;
     if (totalWoundSuccesses === 0 && a.totalDamage === 0 && a.attacks === 0) return;
     anyOutput = true;
 
-    const div = (numer, denom) => denom > 0 ? (numer / denom * 100).toFixed(1) + '%' : '—';
-    const perRun = isAggregate ? `(avg ${(a.totalDamage / iterations).toFixed(1)}/run)` : '';
+    const div = (n, d) => d > 0 ? (n / d * 100).toFixed(1) + '%' : '—';
 
     let html = `<div class="allocation-card">
       <div class="allocation-header">
@@ -998,9 +1106,9 @@ function renderResults(ctx) {
       html += `
         <div class="alloc-row headline ${a.totalDamage === 0 ? 'empty' : ''}">
           <span>Damage dealt</span>
-          <span>${a.totalDamage} ${perRun}</span>
+          <span>${a.totalDamage}</span>
         </div>
-        <div class="alloc-row"><span>Models killed</span><strong>${a.modelsKilled}${isAggregate ? ` (avg ${(a.modelsKilled/iterations).toFixed(2)})` : ''}</strong></div>
+        <div class="alloc-row"><span>Models killed</span><strong>${a.modelsKilled}</strong></div>
         <div class="alloc-row"><span>Saves forced</span><strong>${a.savesAttempted}</strong></div>
         <div class="alloc-row sub"><span>· from std wounds</span><span>${a.normalWounds}</span></div>
         <div class="alloc-row sub"><span>· from lethal hits</span><span class="mono" style="color:#34d399">${a.lethal}</span></div>
@@ -1033,14 +1141,14 @@ function renderResults(ctx) {
   });
 
   if (!anyOutput) {
-    blocks.innerHTML = `<div class="empty-state">All weapons rolled out without producing any results.</div>`;
+    blocks.innerHTML = `<div class="empty-state">No effective attacks yet — fire another salvo.</div>`;
   }
 
   // ── Combat log ──
   const logEl = document.getElementById('combatLog');
   logEl.innerHTML = log.map(l => `<div>${l}</div>`).join('');
+  logEl.scrollTop = logEl.scrollHeight;
 
-  // Scroll results into view on mobile
   document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1121,8 +1229,24 @@ function renderQuickRoll() {
 //  Init
 // ───────────────────────────────────────────────────────────────────
 
+function populateTargetDropdown() {
+  const sel = document.getElementById('targetUnitSelect');
+  if (!sel) return;
+  // Preserve the two fixed leading options (Raw mode) and the trailing
+  // "— Custom unit —" option already in the HTML; inject presets between.
+  const list = (window.SAMPLE_TARGETS || []);
+  const customOpt = sel.querySelector('option[value="custom"]');
+  for (const p of list) {
+    const opt = document.createElement('option');
+    opt.value = p.key;
+    opt.textContent = p.label;
+    sel.insertBefore(opt, customOpt);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', onPillChange);
+  populateTargetDropdown();
   updateRosterDropdown();
   updateTargetUi();
   addWeaponCard();   // start with one weapon

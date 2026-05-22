@@ -55,14 +55,7 @@
         <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
           <select id="targetUnitSelect" class="select-input" style="flex:1; min-width:180px;" onchange="updateTargetUi()">
             <option value="none">— Raw mode (no target) —</option>
-            <option value="intercessor">Space Marine Intercessor</option>
-            <option value="terminator">Space Marine Terminator</option>
-            <option value="custodian">Custodian Guard</option>
-            <option value="ork_boy">Ork Boy</option>
-            <option value="gaunt">Tyranid Gaunt</option>
-            <option value="necron_warrior">Necron Warrior</option>
-            <option value="land_raider">Land Raider (Vehicle)</option>
-            <option value="knight">Imperial Knight (Vehicle)</option>
+            <!-- Sample presets injected from data/sample-targets.js -->
             <option value="custom">— Custom unit —</option>
           </select>
           <select id="unitSizeSelect" class="select-input" hidden style="flex:1; min-width:140px;" onchange="updateTargetUi()"></select>
@@ -157,9 +150,8 @@
 
     <!-- Action bar -->
     <div class="action-bar">
-      <button class="action-btn primary" onclick="executePipeline(1, 1)">Single Salvo</button>
-      <button class="action-btn secondary" onclick="executePipeline(5, 1)">5-Round Game</button>
-      <button class="action-btn tertiary" onclick="executePipeline(1, 100)">Sim ×100</button>
+      <button class="action-btn primary" onclick="executeSalvo()">Single Salvo</button>
+      <button class="action-btn secondary" onclick="resetEngagement()">Reset</button>
     </div>
 
     <!-- Results -->
@@ -248,6 +240,7 @@
 
 <div id="toastContainer" class="toast-container"></div>
 
+<script src="data/sample-targets.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
