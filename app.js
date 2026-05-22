@@ -34,6 +34,32 @@ const HIT_MOD_OPTS = [-1, 0, 1];
 const FNP_OPTS = [0, 6, 5, 4, 3];
 
 // ───────────────────────────────────────────────────────────────────
+//  Haptic feedback
+//  Android Chromium/Firefox via navigator.vibrate. iOS Safari blocks
+//  the Vibration API — the calls are silent no-ops there.
+//  Patterns intentionally short to feel like an OS tap, not a notification.
+// ───────────────────────────────────────────────────────────────────
+
+const HAPTIC_PATTERNS = {
+  tap:     8,              // any button press
+  select:  6,              // radio/checkbox toggle
+  salvo:   18,             // primary action — fire a salvo
+  destroy: [40, 60, 40],   // target unit wiped this salvo
+  reset:   [6, 30, 6],     // engagement cleared
+  warn:    [10, 20, 10],
+  error:   [10, 40, 10]
+};
+
+function haptic(kind) {
+  if (typeof navigator === 'undefined' || !navigator.vibrate) return;
+  // Respect the OS-level "reduce motion" setting as an opt-out signal.
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const p = HAPTIC_PATTERNS[kind];
+  if (p == null) return;
+  try { navigator.vibrate(p); } catch (_) { /* ignore */ }
+}
+
+// ───────────────────────────────────────────────────────────────────
 //  Dice expression parser
 // ───────────────────────────────────────────────────────────────────
 
@@ -100,6 +126,8 @@ function toast(msg, type = '') {
   el.textContent = msg;
   container.appendChild(el);
   setTimeout(() => el.remove(), 3000);
+  if (type === 'warn') haptic('warn');
+  else if (type === 'error') haptic('error');
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -960,7 +988,10 @@ function resetEngagement() {
   const wasActive = engagement && engagement.salvosFired > 0;
   engagement = null;
   document.getElementById('resultsContainer').hidden = true;
-  if (wasActive) toast('Engagement reset');
+  if (wasActive) {
+    haptic('reset');
+    toast('Engagement reset');
+  }
 }
 
 function executeSalvo() {
@@ -1004,6 +1035,10 @@ function executeSalvo() {
 
   engagement.salvosFired += 1;
   engagement.log.push(`<span class="round">— Salvo ${engagement.salvosFired} —</span>`);
+  // Fired-the-shot haptic. If the unit is wiped this salvo, an additional
+  // "destroy" pattern fires below — vibrate() replaces the active pattern,
+  // so users feel the bigger destroy buzz rather than this opener.
+  haptic('salvo');
 
   weapons.forEach((w) => {
     if (engagement.modelState.unitWipedOut) return;
@@ -1040,6 +1075,7 @@ function executeSalvo() {
 
   if (engagement.modelState.unitWipedOut && engagement.salvoWipedIn === 0) {
     engagement.salvoWipedIn = engagement.salvosFired;
+    haptic('destroy');
   }
 
   renderEngagement();
@@ -1246,6 +1282,24 @@ function populateTargetDropdown() {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', onPillChange);
+
+  // Light haptic on any button press. Capture phase so this tap fires
+  // BEFORE the element's onclick handler runs — any stronger pattern
+  // (salvo, destroy, reset) issued by the handler then replaces it.
+  document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('button');
+    if (btn) haptic('tap');
+  }, true);
+
+  // Subtler bump when a radio/checkbox toggles state. Bubble phase is fine
+  // — these don't compete with stronger patterns.
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t && t.matches && t.matches('input[type="radio"], input[type="checkbox"]')) {
+      haptic('select');
+    }
+  });
+
   populateTargetDropdown();
   updateRosterDropdown();
   updateTargetUi();
