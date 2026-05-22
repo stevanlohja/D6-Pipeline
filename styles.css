@@ -682,6 +682,19 @@ body {
 /* Hide when collapsed */
 [hidden] { display: none !important; }
 
+/* ===== iOS Safari focus-zoom fix =====
+   When an input/select/textarea has font-size < 16px, iOS Safari zooms
+   the page in on focus and does not reliably zoom back out on blur.
+   Bumping to 16px on coarse-pointer (touch) devices only avoids the zoom
+   while keeping the compact text sizes on desktop. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ===== App footer (Tutorial + social links) ===== */
 .app-footer {
   max-width: 720px;
