@@ -150,6 +150,24 @@ function formatAvg(n) {
 }
 
 // ───────────────────────────────────────────────────────────────────
+//  Tutorial dialog
+// ───────────────────────────────────────────────────────────────────
+
+function openTutorial() {
+  const dlg = document.getElementById('tutorialDialog');
+  if (!dlg) return;
+  if (typeof dlg.showModal === 'function') dlg.showModal();
+  else dlg.setAttribute('open', '');
+}
+
+function closeTutorial() {
+  const dlg = document.getElementById('tutorialDialog');
+  if (!dlg) return;
+  if (typeof dlg.close === 'function') dlg.close();
+  else dlg.removeAttribute('open');
+}
+
+// ───────────────────────────────────────────────────────────────────
 //  Tabs
 // ───────────────────────────────────────────────────────────────────
 

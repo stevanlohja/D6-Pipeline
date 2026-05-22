@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="D6 Pipeline">
+  <!-- Full-bleed source for home-screen icons (iOS / Android apply their
+       own corner mask). Same composition as favicon.svg but without the
+       outer corner radius. Yellow die on the app's #09090b background. -->
+  <rect width="64" height="64" fill="#09090b"/>
+  <rect x="10" y="10" width="44" height="44" rx="6" fill="#fbbf24"/>
+  <g fill="#09090b">
+    <circle cx="20" cy="20" r="3.5"/>
+    <circle cx="20" cy="32" r="3.5"/>
+    <circle cx="20" cy="44" r="3.5"/>
+    <circle cx="44" cy="20" r="3.5"/>
+    <circle cx="44" cy="32" r="3.5"/>
+    <circle cx="44" cy="44" r="3.5"/>
+  </g>
+</svg>
