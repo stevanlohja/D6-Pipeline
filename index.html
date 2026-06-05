@@ -35,6 +35,7 @@
   <div class="tab-bar" role="tablist" style="margin-bottom: 1rem;">
     <button class="tab-button" data-tab="pipeline" data-active="true" onclick="switchTab('pipeline')">Pipeline</button>
     <button class="tab-button" data-tab="quickroll" data-active="false" onclick="switchTab('quickroll')">Quick Roll</button>
+    <button class="tab-button" data-tab="battle" data-active="false" onclick="switchTab('battle')">Battle Board</button>
   </div>
 
   <!-- ===================================================================
@@ -253,6 +254,70 @@
     </div>
   </div>
 
+  <!-- ===================================================================
+       BATTLE BOARD TAB — live score / CP tracking + secondary deck
+  ==================================================================== -->
+  <div class="tab-panel" data-tab="battle" data-active="false">
+
+    <!-- Score counters -->
+    <section class="section" style="margin-bottom: 1rem;">
+      <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
+
+        <div class="bb-total" id="bbTotalVp">
+          <span class="bb-total-label">Total VP</span>
+          <span class="bb-total-value" id="bbTotalVpVal">0</span>
+        </div>
+
+        <div class="bb-counters">
+          <div class="bb-counter" data-tone="amber">
+            <div class="bb-counter-label">Primary VP</div>
+            <div class="bb-counter-stepper">
+              <button type="button" class="bb-step" onclick="bbAdjust('primary',-1)" aria-label="Primary VP down">−</button>
+              <span class="bb-counter-value" id="bbPrimaryVal">0</span>
+              <button type="button" class="bb-step" onclick="bbAdjust('primary',1)" aria-label="Primary VP up">+</button>
+            </div>
+          </div>
+          <div class="bb-counter" data-tone="violet">
+            <div class="bb-counter-label">Secondary VP</div>
+            <div class="bb-counter-stepper">
+              <button type="button" class="bb-step" onclick="bbAdjust('secondary',-1)" aria-label="Secondary VP down">−</button>
+              <span class="bb-counter-value" id="bbSecondaryVal">0</span>
+              <button type="button" class="bb-step" onclick="bbAdjust('secondary',1)" aria-label="Secondary VP up">+</button>
+            </div>
+          </div>
+          <div class="bb-counter" data-tone="emerald">
+            <div class="bb-counter-label">Command Points</div>
+            <div class="bb-counter-stepper">
+              <button type="button" class="bb-step" onclick="bbAdjust('cp',-1)" aria-label="Command points down">−</button>
+              <span class="bb-counter-value" id="bbCpVal">0</span>
+              <button type="button" class="bb-step" onclick="bbAdjust('cp',1)" aria-label="Command points up">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Secondary objective deck -->
+    <section class="section" style="margin-bottom: 1rem;">
+      <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
+        <label class="field-label">Secondary Deck</label>
+        <div class="keypad" data-tone="amber" id="bbDeckSelect">
+          <input type="radio" id="bbDeck_attacker" name="bbDeck" value="attacker" checked onchange="setBattleDeck('attacker')"><label for="bbDeck_attacker">Attacker</label>
+          <input type="radio" id="bbDeck_defender" name="bbDeck" value="defender" onchange="setBattleDeck('defender')"><label for="bbDeck_defender">Defender</label>
+        </div>
+
+        <button class="action-btn primary" onclick="drawSecondaries()">Draw 2 Secondaries</button>
+
+        <div id="bbHand" class="bb-hand"></div>
+      </div>
+    </section>
+
+    <div class="action-bar">
+      <button class="action-btn secondary" onclick="resetBattleBoard()">Reset Board</button>
+    </div>
+
+  </div>
+
 </main>
 
 <footer class="app-footer">
@@ -311,6 +376,7 @@
 <div id="toastContainer" class="toast-container"></div>
 
 <script src="data/sample-targets.js"></script>
+<script src="data/secondary-decks.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

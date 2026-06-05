@@ -364,9 +364,13 @@ function buildDiceInput(cls, value, chips, label, labelExtras = '') {
   return `
     <div class="dice-input" data-dice-input="${safeId}">
       ${labelHtml}
-      <input type="text" class="dice-input-field ${cls}" value="${value}"
-             oninput="onDiceInputChange(this)" autocomplete="off"
-             inputmode="text" spellcheck="false">
+      <div class="dice-input-row">
+        <button type="button" class="dice-step-btn" onclick="diceStep(this, -1)" aria-label="Decrease ${label}" tabindex="-1">−</button>
+        <input type="text" class="dice-input-field ${cls}" value="${value}"
+               oninput="onDiceInputChange(this)" autocomplete="off"
+               inputmode="text" spellcheck="false">
+        <button type="button" class="dice-step-btn" onclick="diceStep(this, 1)" aria-label="Increase ${label}" tabindex="-1">+</button>
+      </div>
       <div class="dice-input-chips">
         ${chips.map(c => `<button type="button" class="dice-chip" data-value="${c}" onclick="setDiceValue(this, '${c}')">${c}</button>`).join('')}
       </div>
@@ -407,6 +411,26 @@ function describeAttacks(expr, models) {
   }
   if (p.count === 0) return `${models} × ${p.mod} = ${total}`;
   return `${models} × ${expr} → avg ${formatAvg(total)}`;
+}
+
+// Up/down counter on a dice input. For a plain number we nudge the value
+// (clamped ≥ 1); for a dice expression we adjust only the flat +N modifier,
+// leaving the dice intact (e.g. D6+1 → D6+2, D6 → D6−1). Invalid expressions
+// are left untouched. Re-uses onDiceInputChange to refresh meta + chips.
+function diceStep(btn, delta) {
+  const row = btn.closest('.dice-input-row');
+  const input = row?.querySelector('.dice-input-field');
+  if (!input) return;
+  const p = parseDice(input.value);
+  if (!p) return;
+  if (p.count === 0) {
+    input.value = String(Math.max(1, Math.min(99, p.mod + delta)));
+  } else {
+    const mod = Math.max(-9, Math.min(30, p.mod + delta));
+    const head = `${p.count === 1 ? '' : p.count}D${p.sides}`;
+    input.value = mod > 0 ? `${head}+${mod}` : mod < 0 ? `${head}${mod}` : head;
+  }
+  onDiceInputChange(input);
 }
 
 function setDiceValue(chipBtn, value) {
@@ -1335,6 +1359,135 @@ function populateTargetDropdown() {
   }
 }
 
+// ───────────────────────────────────────────────────────────────────
+//  Battle Board — live VP / CP tracking + secondary objective deck
+//
+//  Single-player score keeping for active tabletop play. State persists
+//  to localStorage so an accidental refresh mid-game doesn't wipe the
+//  score. Card content comes from the swappable data/secondary-decks.js
+//  layer (per CLAUDE.md §5 — the engine never hardcodes card content).
+// ───────────────────────────────────────────────────────────────────
+
+const BATTLE_KEY = 'wh40k_battleboard';
+const BB_MIN = 0;
+const BB_MAX = 99;   // generous, edition-agnostic — no hard VP cap baked in
+const BB_HAND_SIZE = 2;
+
+// Counters clamp 0..99; hand holds full card objects so rendering is
+// independent of which deck is currently selected.
+let battleState = defaultBattleState();
+
+function defaultBattleState() {
+  return { primary: 0, secondary: 0, cp: 0, deck: 'attacker', hand: [] };
+}
+
+function loadBattleState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BATTLE_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      return { ...defaultBattleState(), ...saved, hand: Array.isArray(saved.hand) ? saved.hand : [] };
+    }
+  } catch { /* corrupt entry — fall back to defaults */ }
+  return defaultBattleState();
+}
+
+function saveBattleState() {
+  localStorage.setItem(BATTLE_KEY, JSON.stringify(battleState));
+}
+
+function currentDeck() {
+  const decks = window.SECONDARY_DECKS || {};
+  return decks[battleState.deck] || [];
+}
+
+function initBattleBoard() {
+  battleState = loadBattleState();
+  const radio = document.querySelector(`input[name="bbDeck"][value="${battleState.deck}"]`);
+  if (radio) radio.checked = true;
+  renderBattleBoard();
+}
+
+function bbAdjust(field, delta) {
+  if (!(field in battleState)) return;
+  battleState[field] = Math.max(BB_MIN, Math.min(BB_MAX, (battleState[field] || 0) + delta));
+  saveBattleState();
+  renderCounters();
+}
+
+function setBattleDeck(deck) {
+  if (deck !== 'attacker' && deck !== 'defender') return;
+  battleState.deck = deck;
+  saveBattleState();
+}
+
+// Draw N distinct random cards from the active deck (Fisher–Yates pick).
+function drawFromDeck(n, excludeIds = []) {
+  const pool = currentDeck().filter(c => !excludeIds.includes(c.id));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, n);
+}
+
+function drawSecondaries() {
+  if (!currentDeck().length) { toast('Deck is empty', 'error'); return; }
+  battleState.hand = drawFromDeck(BB_HAND_SIZE);
+  saveBattleState();
+  renderHand();
+}
+
+function bbDiscard(slot) {
+  const exclude = battleState.hand.map(c => c.id);
+  const [replacement] = drawFromDeck(1, exclude);
+  if (!replacement) { toast('No fresh cards left in deck', 'error'); return; }
+  battleState.hand[slot] = replacement;
+  saveBattleState();
+  renderHand();
+}
+
+function resetBattleBoard() {
+  if (!confirm('Reset the Battle Board? This clears scores, CP, and drawn cards.')) return;
+  battleState = defaultBattleState();
+  saveBattleState();
+  const radio = document.querySelector('input[name="bbDeck"][value="attacker"]');
+  if (radio) radio.checked = true;
+  renderBattleBoard();
+  toast('Battle Board reset');
+}
+
+function renderBattleBoard() {
+  renderCounters();
+  renderHand();
+}
+
+function renderCounters() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  set('bbPrimaryVal', battleState.primary);
+  set('bbSecondaryVal', battleState.secondary);
+  set('bbCpVal', battleState.cp);
+  set('bbTotalVpVal', battleState.primary + battleState.secondary);
+}
+
+function renderHand() {
+  const wrap = document.getElementById('bbHand');
+  if (!wrap) return;
+  if (!battleState.hand.length) {
+    wrap.innerHTML = `<div class="empty-state">No cards drawn — pick a deck and tap "Draw 2 Secondaries".</div>`;
+    return;
+  }
+  wrap.innerHTML = battleState.hand.map((card, i) => `
+    <div class="bb-card">
+      <div class="bb-card-head">
+        <span class="bb-card-name">${escapeHtml(card.name)}</span>
+        <span class="bb-card-vp">${escapeHtml(card.vp || '')}</span>
+      </div>
+      <p class="bb-card-text">${escapeHtml(card.text || '')}</p>
+      <button type="button" class="bb-card-discard" onclick="bbDiscard(${i})">↻ Discard &amp; draw new</button>
+    </div>
+  `).join('');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', onPillChange);
 
@@ -1358,4 +1511,5 @@ document.addEventListener('DOMContentLoaded', () => {
   updateTargetUi();
   addWeaponCard();   // start with one weapon
   renderQuickRoll();
+  initBattleBoard();
 });

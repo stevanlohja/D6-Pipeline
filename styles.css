@@ -147,6 +147,30 @@ body {
 }
 .dice-input-field:focus { border-color: #fbbf24; }
 .dice-input-field[data-invalid="true"] { border-color: #fb7185; color: #fb7185; }
+/* − / + counter ticks flanking the dice field, so a custom value can be
+   dialed in by tapping rather than typing into the field. */
+.dice-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+}
+.dice-input-row .dice-input-field { flex: 1 1 auto; }
+.dice-step-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 44px;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.dice-step-btn:hover { background: #27272a; }
+.dice-step-btn:active { background: #3f3f46; }
 .dice-input-chips {
   display: flex;
   flex-wrap: wrap;
@@ -823,3 +847,134 @@ body {
   color: #fbbf24;
 }
 .tutorial-cta { margin-top: 0.25rem; }
+
+/* ===== Battle Board =====
+   Live score keeping for active play. Counter steppers use large 56px
+   touch targets and sit low in the panel for one-handed thumb reach. */
+.bb-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.625rem;
+}
+.bb-total-label {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a1a1aa;
+}
+.bb-total-value {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #fbbf24;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.bb-counters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.bb-counter {
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-left-width: 3px;
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.75rem;
+}
+.bb-counter[data-tone="amber"]   { border-left-color: #fbbf24; }
+.bb-counter[data-tone="violet"]  { border-left-color: #a78bfa; }
+.bb-counter[data-tone="emerald"] { border-left-color: #34d399; }
+.bb-counter-label {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a1a1aa;
+  margin-bottom: 0.5rem;
+}
+.bb-counter-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.bb-step {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  color: #f4f4f5;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.bb-step:hover { background: #3f3f46; }
+.bb-step:active { background: #52525b; }
+.bb-counter-value {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #f4f4f5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.bb-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.bb-card {
+  background: rgba(24, 24, 27, 0.6);
+  border: 1px solid #3f3f46;
+  border-radius: 0.625rem;
+  padding: 0.75rem;
+}
+.bb-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+.bb-card-name {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #fbbf24;
+}
+.bb-card-vp {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+.bb-card-text {
+  margin: 0 0 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #d4d4d8;
+}
+.bb-card-discard {
+  width: 100%;
+  min-height: 44px;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  color: #a1a1aa;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+.bb-card-discard:hover { background: #27272a; color: #fbbf24; }
