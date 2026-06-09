@@ -1305,6 +1305,19 @@ function quickRerollFailures() {
   renderQuickRoll();
 }
 
+// Re-roll every die that met the target — for effects that force re-rolling
+// successful dice (e.g. an opponent making you re-roll passed saves).
+function quickRerollSuccesses() {
+  if (!quickRollState.dice.length) return;
+  const targetStr = getCheckedKeypad('qrTarget');
+  if (!targetStr || targetStr === 'none') return toast('Set a success target first', 'warn');
+  const target = parseInt(targetStr, 10);
+  const sides = quickRollState.sides;
+  quickRollState.dice = quickRollState.dice.map(d => d >= target ? rollDN(sides) : d);
+  quickRollState.target = target;
+  renderQuickRoll();
+}
+
 function renderQuickRoll() {
   const tray = document.getElementById('qrTray');
   const summary = document.getElementById('qrSummary');
@@ -1317,9 +1330,13 @@ function renderQuickRoll() {
     return;
   }
 
+  // Crit highlighting is opt-in. When off, max-roll dice are treated as
+  // ordinary successes (an unmodified max still always passes a target).
+  const showCrits = !!document.getElementById('qrHighlightCrits')?.checked;
+
   tray.innerHTML = quickRollState.dice.map(d => {
     let cls = 'die';
-    if (d === sides) cls += ' crit';
+    if (showCrits && d === sides) cls += ' crit';
     else if (d === 1 && t !== null) cls += ' one';
     else if (t !== null) cls += (d >= t ? ' success' : ' fail');
     return `<div class="${cls}">${d}</div>`;
@@ -1333,10 +1350,12 @@ function renderQuickRoll() {
       else fails++;
     }
   });
+  const critTxt = showCrits ? ` · <span style="color:#fbbf24"><strong>${crits}</strong> crits</span>` : '';
   if (t !== null) {
-    summary.innerHTML = `<strong>${hits}</strong> hits · <span style="color:#fbbf24"><strong>${crits}</strong> crits</span> · <span style="color:#fb7185">${fails} fails</span> · ${quickRollState.dice.length} dice`;
+    summary.innerHTML = `<strong>${hits}</strong> hits${critTxt} · <span style="color:#fb7185">${fails} fails</span> · ${quickRollState.dice.length} dice`;
   } else {
-    summary.innerHTML = `<strong>Total:</strong> ${quickRollState.dice.reduce((s,n)=>s+n,0)} · <span style="color:#fbbf24"><strong>${crits}</strong> max-rolls</span>`;
+    const maxTxt = showCrits ? ` · <span style="color:#fbbf24"><strong>${crits}</strong> max-rolls</span>` : '';
+    summary.innerHTML = `<strong>Total:</strong> ${quickRollState.dice.reduce((s,n)=>s+n,0)}${maxTxt}`;
   }
 }
 
@@ -1378,8 +1397,10 @@ const BB_HAND_SIZE = 2;
 let battleState = defaultBattleState();
 
 function defaultBattleState() {
-  return { primary: 0, secondary: 0, cp: 0, deck: 'attacker', hand: [] };
+  return { primary: 0, secondary: 0, cp: 0, round: 1, turn: 'you', deck: 'attacker', hand: [] };
 }
+
+const BB_ROUNDS = 5;   // a game is 5 battle rounds; each player takes a turn per round
 
 function loadBattleState() {
   try {
@@ -1402,9 +1423,14 @@ function currentDeck() {
 
 function initBattleBoard() {
   battleState = loadBattleState();
-  const radio = document.querySelector(`input[name="bbDeck"][value="${battleState.deck}"]`);
-  if (radio) radio.checked = true;
+  syncBattleRadio('bbDeck', battleState.deck);
+  syncBattleRadio('bbTurn', battleState.turn);
   renderBattleBoard();
+}
+
+function syncBattleRadio(name, value) {
+  const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (radio) radio.checked = true;
 }
 
 function bbAdjust(field, delta) {
@@ -1420,14 +1446,29 @@ function setBattleDeck(deck) {
   saveBattleState();
 }
 
+function setBattleTurn(turn) {
+  if (turn !== 'you' && turn !== 'opp') return;
+  battleState.turn = turn;
+  saveBattleState();
+}
+
+function bbAdjustRound(delta) {
+  battleState.round = Math.max(1, Math.min(BB_ROUNDS, (battleState.round || 1) + delta));
+  saveBattleState();
+  renderRoundTurn();
+}
+
 // Draw N distinct random cards from the active deck (Fisher–Yates pick).
+// Each drawn card is stamped with its source deck so its accent stays
+// correct even if the deck selector is later switched.
 function drawFromDeck(n, excludeIds = []) {
+  const deck = battleState.deck;
   const pool = currentDeck().filter(c => !excludeIds.includes(c.id));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0, n);
+  return pool.slice(0, n).map(c => ({ ...c, deck }));
 }
 
 function drawSecondaries() {
@@ -1447,18 +1488,25 @@ function bbDiscard(slot) {
 }
 
 function resetBattleBoard() {
-  if (!confirm('Reset the Battle Board? This clears scores, CP, and drawn cards.')) return;
+  if (!confirm('Reset the Battle Board? This clears scores, CP, round, and drawn cards.')) return;
   battleState = defaultBattleState();
   saveBattleState();
-  const radio = document.querySelector('input[name="bbDeck"][value="attacker"]');
-  if (radio) radio.checked = true;
+  syncBattleRadio('bbDeck', battleState.deck);
+  syncBattleRadio('bbTurn', battleState.turn);
   renderBattleBoard();
   toast('Battle Board reset');
 }
 
 function renderBattleBoard() {
+  renderRoundTurn();
   renderCounters();
   renderHand();
+}
+
+function renderRoundTurn() {
+  const el = document.getElementById('bbRoundVal');
+  if (el) el.textContent = String(battleState.round || 1);
+  syncBattleRadio('bbTurn', battleState.turn);
 }
 
 function renderCounters() {
@@ -1477,7 +1525,7 @@ function renderHand() {
     return;
   }
   wrap.innerHTML = battleState.hand.map((card, i) => `
-    <div class="bb-card">
+    <div class="bb-card" data-deck="${card.deck === 'defender' ? 'defender' : 'attacker'}">
       <div class="bb-card-head">
         <span class="bb-card-name">${escapeHtml(card.name)}</span>
         <span class="bb-card-vp">${escapeHtml(card.vp || '')}</span>

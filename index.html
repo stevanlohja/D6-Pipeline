@@ -234,23 +234,36 @@
         </div>
 
         <div>
+          <label class="field-label">Crits</label>
+          <div class="toggle-row">
+            <label class="toggle-pill tone-emerald" data-checked="false">
+              <input type="checkbox" id="qrHighlightCrits" onchange="renderQuickRoll()">Highlight Crits
+            </label>
+          </div>
+        </div>
+
+        <div>
           <label class="field-label">Dice Tray</label>
           <div id="qrTray" class="dice-tray"></div>
           <div id="qrSummary" style="margin-top:.5rem; text-align:center; font-size:.8125rem; color:#d4d4d8;"></div>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:.5rem;">
+        <div style="display:flex; flex-direction:column; gap:.5rem;">
           <button class="action-btn primary" onclick="quickRoll()">Roll</button>
-          <button class="action-btn secondary" onclick="quickRerollOnes()">Re-roll 1s</button>
-          <button class="action-btn tertiary" onclick="quickRerollFailures()">Re-roll Fails</button>
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:.5rem;">
+            <button class="action-btn secondary" onclick="quickRerollOnes()">Re-roll 1s</button>
+            <button class="action-btn tertiary" onclick="quickRerollFailures()">Re-roll Fails</button>
+            <button class="action-btn tertiary" onclick="quickRerollSuccesses()">Re-roll Successes</button>
+          </div>
         </div>
 
       </div>
     </section>
 
     <div style="padding: 0 .5rem; font-size:.75rem; color:#71717a; line-height:1.6;">
-      <strong style="color:#fbbf24;">Tip:</strong> set a target like 3+ and tap "Re-roll Fails" to simulate a unit re-rolling all failed hits.
-      Max-roll dice (6s on D6, 3s on D3) are highlighted as crits.
+      <strong style="color:#fbbf24;">Tip:</strong> set a target like 3+ and tap "Re-roll Fails" to simulate a unit re-rolling all failed hits,
+      or "Re-roll Successes" for effects that force re-rolling successful dice.
+      Turn on <em>Highlight Crits</em> to flag max-roll dice (6s on D6, 3s on D3).
     </div>
   </div>
 
@@ -262,6 +275,24 @@
     <!-- Score counters -->
     <section class="section" style="margin-bottom: 1rem;">
       <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
+
+        <div class="bb-track">
+          <div class="bb-round">
+            <span class="bb-round-label">Battle Round</span>
+            <div class="bb-round-stepper">
+              <button type="button" class="bb-step small" onclick="bbAdjustRound(-1)" aria-label="Previous round">−</button>
+              <span class="bb-round-value"><span id="bbRoundVal">1</span><span class="bb-round-max"> / 5</span></span>
+              <button type="button" class="bb-step small" onclick="bbAdjustRound(1)" aria-label="Next round">+</button>
+            </div>
+          </div>
+          <div class="bb-turn">
+            <span class="bb-round-label">Turn</span>
+            <div class="keypad compact" id="bbTurnSelect">
+              <input type="radio" id="bbTurn_you" name="bbTurn" value="you" checked onchange="setBattleTurn('you')"><label for="bbTurn_you">You</label>
+              <input type="radio" id="bbTurn_opp" name="bbTurn" value="opp" onchange="setBattleTurn('opp')"><label for="bbTurn_opp">Opponent</label>
+            </div>
+          </div>
+        </div>
 
         <div class="bb-total" id="bbTotalVp">
           <span class="bb-total-label">Total VP</span>
@@ -301,7 +332,7 @@
     <section class="section" style="margin-bottom: 1rem;">
       <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
         <label class="field-label">Secondary Deck</label>
-        <div class="keypad" data-tone="amber" id="bbDeckSelect">
+        <div class="keypad" id="bbDeckSelect">
           <input type="radio" id="bbDeck_attacker" name="bbDeck" value="attacker" checked onchange="setBattleDeck('attacker')"><label for="bbDeck_attacker">Attacker</label>
           <input type="radio" id="bbDeck_defender" name="bbDeck" value="defender" onchange="setBattleDeck('defender')"><label for="bbDeck_defender">Defender</label>
         </div>
