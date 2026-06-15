@@ -22,11 +22,50 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- Apply the saved theme before the stylesheet paints so an e-ink
-       screen never flashes the dark theme on load (avoids a full refresh). -->
-  <script>try{var t=localStorage.getItem('wh40k_theme');if(t==='eink')document.documentElement.setAttribute('data-theme','eink');}catch(e){}</script>
+  <!-- Theme is handled entirely by this tiny inline script — NOT by the
+       heavy app.js — so it works even when a low-powered e-ink browser
+       (e.g. Kindle Scribe) struggles to load/run the main bundle. It also
+       runs before the stylesheet paints, so the e-ink screen never flashes
+       the dark theme on load. Force e-ink with ?theme=eink (bookmarkable on
+       the Kindle so no tap is needed at all). -->
+  <script>
+  (function () {
+    function apply(t) {
+      t = (t === 'eink') ? 'eink' : 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      try { localStorage.setItem('wh40k_theme', t); } catch (e) {}
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', t === 'eink' ? '#ffffff' : '#09090b');
+      var b = document.getElementById('themeToggle');
+      if (b) {
+        b.setAttribute('aria-pressed', t === 'eink' ? 'true' : 'false');
+        var l = b.querySelector('.theme-toggle-label');
+        if (l) l.textContent = (t === 'eink') ? 'Dark' : 'E-ink';
+      }
+    }
+    window.applyTheme = apply;
+    window.toggleTheme = function () {
+      var cur = document.documentElement.getAttribute('data-theme') === 'eink' ? 'eink' : 'dark';
+      apply(cur === 'eink' ? 'dark' : 'eink');
+    };
+    // Initial theme: a ?theme= (or bare ?eink) URL param wins, else the
+    // saved choice, else dark. Set before paint to avoid a flash.
+    var initial = 'dark';
+    try {
+      var q = location.search;
+      if (/[?&](theme=eink|eink)\b/.test(q)) initial = 'eink';
+      else if (/[?&]theme=dark\b/.test(q)) initial = 'dark';
+      else initial = localStorage.getItem('wh40k_theme') || 'dark';
+    } catch (e) {}
+    document.documentElement.setAttribute('data-theme', initial === 'eink' ? 'eink' : 'dark');
+    // Sync the toggle button's label once the DOM exists (independent of app.js).
+    document.addEventListener('DOMContentLoaded', function () {
+      apply(document.documentElement.getAttribute('data-theme'));
+    });
+  })();
+  </script>
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260614">
 </head>
 <body class="minimal-scrollbar">
 
@@ -417,8 +456,8 @@
 
 <div id="toastContainer" class="toast-container"></div>
 
-<script src="data/sample-targets.js"></script>
-<script src="data/secondary-decks.js"></script>
-<script src="app.js"></script>
+<script src="data/sample-targets.js?v=20260614"></script>
+<script src="data/secondary-decks.js?v=20260614"></script>
+<script src="app.js?v=20260614"></script>
 </body>
 </html>

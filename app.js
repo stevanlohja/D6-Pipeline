@@ -180,42 +180,9 @@ function switchTab(name) {
   });
 }
 
-// ───────────────────────────────────────────────────────────────────
-//  Theme — default dark tabletop vs. e-ink (Kindle) light B&W
-//
-//  The e-ink theme is a high-contrast pure black-on-white skin for
-//  reflective screens (no backlight, slow refresh): no animations,
-//  no colour accents, solid black borders. Choice persists locally and
-//  is also bootstrapped in <head> to avoid a dark flash on load.
-// ───────────────────────────────────────────────────────────────────
-
-const THEME_KEY = 'wh40k_theme';
-
-function applyTheme(theme) {
-  const t = theme === 'eink' ? 'eink' : 'dark';
-  document.documentElement.setAttribute('data-theme', t);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', t === 'eink' ? '#ffffff' : '#09090b');
-  const btn = document.getElementById('themeToggle');
-  if (btn) {
-    btn.setAttribute('aria-pressed', String(t === 'eink'));
-    const lbl = btn.querySelector('.theme-toggle-label');
-    if (lbl) lbl.textContent = t === 'eink' ? 'Dark' : 'E-ink';
-  }
-}
-
-function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') === 'eink' ? 'eink' : 'dark';
-  const next = current === 'eink' ? 'dark' : 'eink';
-  try { localStorage.setItem(THEME_KEY, next); } catch { /* storage unavailable */ }
-  applyTheme(next);
-}
-
-function initTheme() {
-  let saved = 'dark';
-  try { saved = localStorage.getItem(THEME_KEY) || 'dark'; } catch { /* storage unavailable */ }
-  applyTheme(saved);
-}
+// Theme (default dark vs. e-ink) is handled entirely by the small inline
+// script in index.html's <head> so it keeps working even when a low-powered
+// e-ink browser struggles to load this bundle. Nothing theme-related here.
 
 // ───────────────────────────────────────────────────────────────────
 //  Toast
@@ -1591,7 +1558,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  initTheme();
   populateTargetDropdown();
   updateRosterDropdown();
   updateTargetUi();
