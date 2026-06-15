@@ -6,6 +6,34 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ===== Responsive layout & scaling =====
+   The content column is centred and capped on phones. On larger screens
+   (tablets, the Kindle Scribe) we widen the column to use the space and
+   bump the ROOT font-size — since nearly all sizing (text, padding, and
+   the tap targets, which were converted from px to rem) is rem-based, a
+   single root bump scales the whole UI, buttons included. Breakpoints
+   only (no clamp()/min()/max()) for old e-ink WebKit compatibility. */
+.app-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+@media (min-width: 700px) {
+  html { font-size: 17px; }
+  .app-main { max-width: 880px; padding: 1.5rem; }
+  .app-footer { max-width: 880px; }
+}
+@media (min-width: 1000px) {
+  html { font-size: 18.5px; }
+  .app-main { max-width: 1000px; padding: 2rem; }
+  .app-footer { max-width: 1000px; }
+}
+@media (min-width: 1300px) {
+  html { font-size: 20px; }
+  .app-main { max-width: 1080px; }
+  .app-footer { max-width: 1080px; }
+}
+
 /* Minimal scrollbar */
 .minimal-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .minimal-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
@@ -91,7 +119,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: 2.75rem;
   padding: 0 0.25rem;
   background: #18181b;
   border: 1px solid #3f3f46;
@@ -115,7 +143,7 @@ body {
 }
 
 /* Compact keypad variant (smaller buttons) */
-.keypad.compact label { min-height: 36px; font-size: 0.75rem; }
+.keypad.compact label { min-height: 2.25rem; font-size: 0.75rem; }
 
 /* Tone variants — recolor the checked state */
 .keypad[data-tone="blue"] input[type="radio"]:checked + label { background: #60a5fa; border-color: #60a5fa; }
@@ -143,7 +171,7 @@ body {
   font-weight: 600;
   text-align: center;
   outline: none;
-  min-height: 44px;
+  min-height: 2.75rem;
 }
 .dice-input-field:focus { border-color: #fbbf24; }
 .dice-input-field[data-invalid="true"] { border-color: #fb7185; color: #fb7185; }
@@ -157,8 +185,8 @@ body {
 .dice-input-row .dice-input-field { flex: 1 1 auto; }
 .dice-step-btn {
   flex: 0 0 auto;
-  width: 44px;
-  min-height: 44px;
+  width: 2.75rem;
+  min-height: 2.75rem;
   background: #18181b;
   border: 1px solid #3f3f46;
   border-radius: 0.5rem;
@@ -178,7 +206,7 @@ body {
 }
 .dice-chip {
   flex: 1 1 auto;
-  min-width: 44px;
+  min-width: 2.75rem;
   padding: 0.375rem 0.5rem;
   background: #18181b;
   border: 1px solid #3f3f46;
@@ -224,8 +252,8 @@ body {
 }
 .models-firing .mf-x { color: #71717a; padding-right: 0.125rem; }
 .models-firing .mf-btn {
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   border: 1px solid #3f3f46;
   background: #18181b;
   border-radius: 0.25rem;
@@ -238,7 +266,7 @@ body {
 }
 .models-firing .mf-btn:hover { background: #27272a; color: #fbbf24; }
 .models-firing .mf-input {
-  width: 32px;
+  width: 2rem;
   text-align: center;
   background: transparent;
   border: none;
@@ -261,11 +289,11 @@ body {
   border: 1px solid #3f3f46;
   border-radius: 0.5rem;
   overflow: hidden;
-  min-height: 44px;
+  min-height: 2.75rem;
 }
 .stepper button {
   flex: 0 0 auto;
-  width: 36px;
+  width: 2.25rem;
   background: transparent;
   border: none;
   color: #fbbf24;
@@ -338,8 +366,8 @@ body {
 
 .weapon-action-btn {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   background: transparent;
   border: none;
   color: #71717a;
@@ -561,8 +589,8 @@ body {
   min-height: 96px;
 }
 .die {
-  width: 44px;
-  height: 44px;
+  width: 2.75rem;
+  height: 2.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -605,7 +633,7 @@ body {
   color: #f4f4f5;
   font-size: 0.875rem;
   outline: none;
-  min-height: 40px;
+  min-height: 2.5rem;
 }
 .text-input:focus { border-color: #fbbf24; }
 .select-input {
@@ -617,7 +645,7 @@ body {
   color: #f4f4f5;
   font-size: 0.875rem;
   outline: none;
-  min-height: 40px;
+  min-height: 2.5rem;
   -webkit-appearance: none;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a1a1aa' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
@@ -637,7 +665,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.05em;
   cursor: pointer;
-  min-height: 40px;
+  min-height: 2.5rem;
   transition: filter 100ms ease;
 }
 .btn:hover { filter: brightness(1.1); }
@@ -736,7 +764,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 40px;
+  min-height: 2.5rem;
   padding: 0.5rem 0.875rem;
   background: rgba(24, 24, 27, 0.6);
   border: 1px solid rgba(63, 63, 70, 0.6);
@@ -751,7 +779,7 @@ body {
   cursor: pointer;
   transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
 }
-.footer-link.icon-only { padding: 0.5rem; min-width: 40px; }
+.footer-link.icon-only { padding: 0.5rem; min-width: 2.5rem; }
 .footer-link:hover, .footer-link:focus-visible {
   background: rgba(39, 39, 42, 0.9);
   color: #fbbf24;
@@ -802,8 +830,8 @@ body {
 }
 .tutorial-close {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   background: transparent;
   border: none;
   border-radius: 0.5rem;
@@ -903,8 +931,8 @@ body {
 }
 .bb-step {
   flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
+  width: 3.5rem;
+  height: 3.5rem;
   background: #27272a;
   border: 1px solid #3f3f46;
   border-radius: 0.5rem;
@@ -970,7 +998,7 @@ body {
 }
 .bb-card-discard {
   width: 100%;
-  min-height: 44px;
+  min-height: 2.75rem;
   background: #18181b;
   border: 1px solid #3f3f46;
   border-radius: 0.5rem;
@@ -1029,7 +1057,7 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .bb-round-max { color: #71717a; font-size: 1rem; font-weight: 700; }
-.bb-step.small { width: 44px; height: 44px; font-size: 1.375rem; }
+.bb-step.small { width: 2.75rem; height: 2.75rem; font-size: 1.375rem; }
 .bb-turn .keypad { flex: 1 1 auto; }
 
 /* ===== Theme toggle button (header) ===== */
@@ -1037,7 +1065,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 36px;
+  min-height: 2.25rem;
   padding: 0.4rem 0.7rem;
   background: rgba(24, 24, 27, 0.6);
   border: 1px solid rgba(63, 63, 70, 0.6);
