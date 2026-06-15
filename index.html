@@ -65,7 +65,27 @@
   })();
   </script>
 
-  <link rel="stylesheet" href="styles.css?v=20260614">
+  <!-- On-screen error reporter: the Kindle has no dev tools, so surface any
+       uncaught error (including a script that fails to parse) in a visible
+       box. Harmless when there are no errors; ES5-safe on purpose. -->
+  <script>
+  window.addEventListener('error', function (e) {
+    try {
+      var box = document.getElementById('jsErrorBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'jsErrorBox';
+        box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#fff;color:#000;border-top:3px solid #000;font:12px/1.4 monospace;padding:8px;white-space:pre-wrap;max-height:45%;overflow:auto';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      var msg = (e && e.message) ? e.message : 'Unknown error';
+      var where = (e && e.filename) ? (' @ ' + String(e.filename).split('/').pop() + ':' + (e.lineno || '?')) : '';
+      box.textContent = 'JS ERROR — ' + msg + where;
+    } catch (x) {}
+  });
+  </script>
+
+  <link rel="stylesheet" href="styles.css?v=20260614b">
 </head>
 <body class="minimal-scrollbar">
 
@@ -456,8 +476,8 @@
 
 <div id="toastContainer" class="toast-container"></div>
 
-<script src="data/sample-targets.js?v=20260614"></script>
-<script src="data/secondary-decks.js?v=20260614"></script>
-<script src="app.js?v=20260614"></script>
+<script src="data/sample-targets.js?v=20260614b"></script>
+<script src="data/secondary-decks.js?v=20260614b"></script>
+<script src="app.js?v=20260614b"></script>
 </body>
 </html>

@@ -113,9 +113,16 @@ function playClick() {
 function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 function rollDN(n) { return Math.floor(Math.random() * n) + 1; }
 
+// ── Old-browser compat helpers ──────────────────────────────────────
+// The Kindle Scribe browser is an old WebKit without optional chaining
+// (?.) or nullish coalescing (??). These keep the engine parseable there
+// without pulling in a build/transpile step (the project ships raw JS).
+function valOf(el) { return el ? el.value : undefined; }
+function isChecked(id) { const el = document.getElementById(id); return !!(el && el.checked); }
+
 function parseDice(expr) {
   if (typeof expr === 'number') return { count: 0, sides: 0, mod: expr };
-  const s = String(expr ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  const s = String(expr == null ? '' : expr).trim().toUpperCase().replace(/\s+/g, '');
   if (!s) return null;
   if (/^-?\d+$/.test(s)) return { count: 0, sides: 0, mod: parseInt(s, 10) };
   const m = s.match(/^(\d*)D([36])([+-]\d+)?$/);
@@ -232,7 +239,7 @@ function readTargetState() {
     modelCount = isSingle ? 1 : (parseInt(document.getElementById('custSize').value, 10) || 5);
   } else if (hasTarget) {
     const p = TARGET_PROFILES[key];
-    base = { ...p };
+    base = Object.assign({}, p);
     const sizeMode = document.getElementById('unitSizeSelect').value;
     modelCount = p.isSingleModel ? 1 : (sizeMode === 'full' ? p.fullSize : p.halfSize);
   } else {
@@ -240,17 +247,17 @@ function readTargetState() {
   }
 
   // Defensive modifiers (apply regardless of preset)
-  const cover = document.getElementById('defCover')?.checked || false;
-  const minusOneDamage = document.getElementById('defMinusDmg')?.checked || false;
-  const halveDamage = document.getElementById('defHalveDmg')?.checked || false;
-  const stealthHit = document.getElementById('defStealth')?.checked || false;
-  const minusOneWound = document.getElementById('defMinusWound')?.checked || false;
+  const cover = isChecked('defCover');
+  const minusOneDamage = isChecked('defMinusDmg');
+  const halveDamage = isChecked('defHalveDmg');
+  const stealthHit = isChecked('defStealth');
+  const minusOneWound = isChecked('defMinusWound');
   const fnp = parseInt(getCheckedKeypad('defFnp') || '0', 10);
 
   if (base) {
     return {
       hasTarget: true,
-      target: { ...base, modelCount, cover, minusOneDamage, halveDamage, stealthHit, minusOneWound, fnp }
+      target: Object.assign({}, base, { modelCount, cover, minusOneDamage, halveDamage, stealthHit, minusOneWound, fnp })
     };
   }
   return {
@@ -423,7 +430,7 @@ function describeAttacks(expr, models) {
 // are left untouched. Re-uses onDiceInputChange to refresh meta + chips.
 function diceStep(btn, delta) {
   const row = btn.closest('.dice-input-row');
-  const input = row?.querySelector('.dice-input-field');
+  const input = row && row.querySelector('.dice-input-field');
   if (!input) return;
   const p = parseDice(input.value);
   if (!p) return;
@@ -455,7 +462,7 @@ function onDiceInputChange(input) {
     const isAttacks = input.classList.contains('w-attacks');
     if (isAttacks) {
       const card = input.closest('.weapon-card');
-      const models = Math.max(1, parseInt(card?.querySelector('.w-models')?.value, 10) || 1);
+      const models = Math.max(1, parseInt(valOf(card && card.querySelector('.w-models')), 10) || 1);
       meta.textContent = describeAttacks(input.value, models);
     } else {
       meta.textContent = describeDice(input.value);
@@ -474,13 +481,13 @@ function onModelsInputChange(input) {
   if (String(v) !== input.value) input.value = String(v);
   // Refresh the Attacks meta in this card to reflect new models count.
   const card = input.closest('.weapon-card');
-  const attacksInput = card?.querySelector('.w-attacks');
+  const attacksInput = card && card.querySelector('.w-attacks');
   if (attacksInput) onDiceInputChange(attacksInput);
 }
 
 function adjustModels(btn, delta) {
   const wrap = btn.closest('.models-firing');
-  const input = wrap?.querySelector('.mf-input');
+  const input = wrap && wrap.querySelector('.mf-input');
   if (!input) return;
   const next = (parseInt(input.value, 10) || 1) + delta;
   input.value = String(Math.max(1, Math.min(30, next)));
@@ -518,7 +525,7 @@ let weaponCounter = 0;
 function addWeaponCard(state = {}) {
   weaponCounter++;
   const id = weaponCounter;
-  const s = {
+  const s = Object.assign({
     name: `Weapon ${id}`,
     attacks: '4',
     models: 1,
@@ -544,9 +551,8 @@ function addWeaponCard(state = {}) {
     melta: 0,
     inMeltaRange: false,
     blast: false,
-    ignoresCover: false,
-    ...migrateLegacyWeapon(state)
-  };
+    ignoresCover: false
+  }, migrateLegacyWeapon(state));
 
   const html = `
     <div class="weapon-card" id="weaponCard_${id}" data-weapon-id="${id}">
@@ -719,7 +725,7 @@ function readWeaponState(card) {
   return {
     name: card.querySelector('.w-name').value || `Weapon ${id}`,
     attacks: card.querySelector('.w-attacks').value,
-    models: Math.max(1, parseInt(card.querySelector('.w-models')?.value, 10) || 1),
+    models: Math.max(1, parseInt(valOf(card.querySelector('.w-models')), 10) || 1),
     damage: card.querySelector('.w-damage').value,
     hitTarget: parseInt(getCheckedKeypad(`bs_${id}`) || '3', 10),
     strength: parseInt(card.querySelector('.w-strength').value, 10) || 4,
@@ -1044,8 +1050,8 @@ function resolveWeaponRound(w, ctx, log) {
 let engagement = null;
 
 function currentTargetKey() {
-  const key = document.getElementById('targetUnitSelect')?.value || 'none';
-  const size = document.getElementById('unitSizeSelect')?.value || '';
+  const key = valOf(document.getElementById('targetUnitSelect')) || 'none';
+  const size = valOf(document.getElementById('unitSizeSelect')) || '';
   return `${key}:${size}`;
 }
 
@@ -1094,8 +1100,7 @@ function executeSalvo() {
     }
   }
 
-  const weapons = [...cards].map(c => ({
-    ...readWeaponState(c),
+  const weapons = [...cards].map(c => Object.assign({}, readWeaponState(c), {
     _cardId: c.dataset.weaponId
   }));
   const { hasTarget, target } = readTargetState();
@@ -1336,7 +1341,7 @@ function renderQuickRoll() {
 
   // Crit highlighting is opt-in. When off, max-roll dice are treated as
   // ordinary successes (an unmodified max still always passes a target).
-  const showCrits = !!document.getElementById('qrHighlightCrits')?.checked;
+  const showCrits = isChecked('qrHighlightCrits');
 
   tray.innerHTML = quickRollState.dice.map(d => {
     let cls = 'die';
@@ -1410,9 +1415,9 @@ function loadBattleState() {
   try {
     const saved = JSON.parse(localStorage.getItem(BATTLE_KEY) || 'null');
     if (saved && typeof saved === 'object') {
-      return { ...defaultBattleState(), ...saved, hand: Array.isArray(saved.hand) ? saved.hand : [] };
+      return Object.assign({}, defaultBattleState(), saved, { hand: Array.isArray(saved.hand) ? saved.hand : [] });
     }
-  } catch { /* corrupt entry — fall back to defaults */ }
+  } catch (e) { /* corrupt entry — fall back to defaults */ }
   return defaultBattleState();
 }
 
@@ -1472,7 +1477,7 @@ function drawFromDeck(n, excludeIds = []) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0, n).map(c => ({ ...c, deck }));
+  return pool.slice(0, n).map(c => Object.assign({}, c, { deck }));
 }
 
 function drawSecondaries() {
