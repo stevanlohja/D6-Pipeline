@@ -1031,3 +1031,109 @@ body {
 .bb-round-max { color: #71717a; font-size: 1rem; font-weight: 700; }
 .bb-step.small { width: 44px; height: 44px; font-size: 1.375rem; }
 .bb-turn .keypad { flex: 1 1 auto; }
+
+/* ===== Theme toggle button (header) ===== */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.4rem 0.7rem;
+  background: rgba(24, 24, 27, 0.6);
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  border-radius: 0.625rem;
+  color: #a1a1aa;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+.theme-toggle:hover, .theme-toggle:focus-visible {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.6);
+  outline: none;
+}
+.theme-toggle svg { display: block; }
+
+/* ===================================================================
+   E-INK THEME  —  high-contrast pure black-on-white for Kindle Scribe
+   and similar reflective screens. Scoped to html[data-theme="eink"].
+
+   Principles: no backlight + slow partial-refresh + grayscale only, so
+   we drop every colour accent to black, kill animations/transitions/
+   blur, force solid black borders, and invert selected/active controls
+   to black-fill/white-text instead of relying on hue.
+=================================================================== */
+
+/* Kill motion + translucency + glow; force every border to solid black.
+   border-color on elements with no border is a no-op, so this is safe. */
+html[data-theme="eink"] *,
+html[data-theme="eink"] *::before,
+html[data-theme="eink"] *::after {
+  transition: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: #000 !important;
+}
+
+/* Page + all text default to black on white. background-color (not the
+   shorthand) preserves background-images like the <select> arrow. */
+html[data-theme="eink"],
+html[data-theme="eink"] body { background: #fff !important; }
+html[data-theme="eink"] body,
+html[data-theme="eink"] body * { color: #000 !important; }
+html[data-theme="eink"] * { background-color: #fff !important; }
+
+/* Headers keep a hairline divider instead of a fill. */
+html[data-theme="eink"] .section-header,
+html[data-theme="eink"] .modifier-section-header {
+  border-bottom: 1px solid #000;
+}
+
+/* Inverted (selected / active / primary) controls: black fill, white text. */
+html[data-theme="eink"] .tab-button[data-active="true"],
+html[data-theme="eink"] .keypad input[type="radio"]:checked + label,
+html[data-theme="eink"] .toggle-pill[data-checked="true"],
+html[data-theme="eink"] .action-btn,
+html[data-theme="eink"] .btn.btn-primary,
+html[data-theme="eink"] .die.success,
+html[data-theme="eink"] .die.crit,
+html[data-theme="eink"] #bbDeckSelect input[type="radio"]:checked + label,
+html[data-theme="eink"] #bbTurnSelect input[type="radio"]:checked + label {
+  background-color: #000 !important;
+  color: #fff !important;
+  border-color: #000 !important;
+}
+
+/* A crit is a filled die with a white inner ring so it reads distinctly
+   from an ordinary success at a glance (uses border, not box-shadow). */
+html[data-theme="eink"] .die.crit { outline: 2px solid #fff; outline-offset: -5px; }
+
+/* Failed / rolled-1 dice stay hollow (white with black border). */
+html[data-theme="eink"] .die.fail,
+html[data-theme="eink"] .die.one {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+/* Deck cards lose the red/green hue; distinguish by left-border weight. */
+html[data-theme="eink"] .bb-card { border-left-width: 4px; }
+html[data-theme="eink"] .bb-card[data-deck="defender"] { border-left-style: dashed; }
+
+/* Dashed accents → solid black so they don't read as faint on e-ink. */
+html[data-theme="eink"] .add-weapon-btn,
+html[data-theme="eink"] #customUnitPanel { border-style: solid !important; }
+
+/* Dialog backdrop: near-white instead of a dark wash (avoids a full
+   black refresh); the dialog's black border keeps it distinct. */
+html[data-theme="eink"] .tutorial-dialog::backdrop {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}

@@ -22,6 +22,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+  <!-- Apply the saved theme before the stylesheet paints so an e-ink
+       screen never flashes the dark theme on load (avoids a full refresh). -->
+  <script>try{var t=localStorage.getItem('wh40k_theme');if(t==='eink')document.documentElement.setAttribute('data-theme','eink');}catch(e){}</script>
+
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="minimal-scrollbar">
@@ -29,6 +33,13 @@
 <main style="max-width: 720px; margin: 0 auto; padding: 1rem;">
   <header style="display:flex; align-items:center; justify-content:space-between; padding: .5rem .25rem 1rem;">
     <h1 style="font-size: 1.125rem; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; color: #fbbf24;">D6&nbsp;Pipeline</h1>
+    <button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()" aria-pressed="false" aria-label="Toggle e-ink theme" title="Toggle e-ink (Kindle) theme">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle>
+        <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"></path>
+      </svg>
+      <span class="theme-toggle-label">E-ink</span>
+    </button>
   </header>
 
   <!-- Tabs -->
