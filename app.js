@@ -1400,22 +1400,53 @@ const BATTLE_KEY = 'wh40k_battleboard';
 const BB_MIN = 0;
 const BB_MAX = 99;   // generous, edition-agnostic — no hard VP cap baked in
 const BB_HAND_SIZE = 2;
+const BB_ROUNDS = 5; // a game is 5 battle rounds; each player takes a turn per round
 
-// Counters clamp 0..99; hand holds full card objects so rendering is
-// independent of which deck is currently selected.
+// Round + turn are shared (one game timeline); each player owns their own
+// scores, secondary deck, and drawn hand. The 2nd player is optional.
 let battleState = defaultBattleState();
 
-function defaultBattleState() {
-  return { primary: 0, secondary: 0, cp: 0, round: 1, turn: 'you', deck: 'attacker', hand: [] };
+function defaultPlayer() {
+  return { primary: 0, secondary: 0, cp: 0, deck: 'attacker', hand: [] };
 }
 
-const BB_ROUNDS = 5;   // a game is 5 battle rounds; each player takes a turn per round
+function defaultBattleState() {
+  return { round: 1, turn: 'p1', twoPlayer: false, players: [defaultPlayer(), defaultPlayer()] };
+}
+
+function clampScore(v) {
+  v = parseInt(v, 10);
+  if (!isFinite(v)) v = 0;
+  return Math.max(BB_MIN, Math.min(BB_MAX, v));
+}
+
+function sanitizePlayer(p) {
+  p = p || {};
+  return {
+    primary: clampScore(p.primary),
+    secondary: clampScore(p.secondary),
+    cp: clampScore(p.cp),
+    deck: p.deck === 'defender' ? 'defender' : 'attacker',
+    hand: Array.isArray(p.hand) ? p.hand : []
+  };
+}
 
 function loadBattleState() {
   try {
     const saved = JSON.parse(localStorage.getItem(BATTLE_KEY) || 'null');
     if (saved && typeof saved === 'object') {
-      return Object.assign({}, defaultBattleState(), saved, { hand: Array.isArray(saved.hand) ? saved.hand : [] });
+      // Migrate the old single-player flat shape ({primary, secondary, cp,
+      // deck, hand, turn:'you'|'opp'}) into the new per-player array.
+      let players;
+      if (Array.isArray(saved.players)) {
+        players = [sanitizePlayer(saved.players[0]), sanitizePlayer(saved.players[1])];
+      } else {
+        players = [sanitizePlayer(saved), defaultPlayer()];
+      }
+      let turn = saved.turn === 'opp' ? 'p2' : (saved.turn === 'you' ? 'p1' : saved.turn);
+      if (turn !== 'p1' && turn !== 'p2') turn = 'p1';
+      const round = Math.max(1, Math.min(BB_ROUNDS, parseInt(saved.round, 10) || 1));
+      return { round: round, turn: turn, twoPlayer: !!saved.twoPlayer, players: players };
     }
   } catch (e) { /* corrupt entry — fall back to defaults */ }
   return defaultBattleState();
@@ -1425,38 +1456,53 @@ function saveBattleState() {
   localStorage.setItem(BATTLE_KEY, JSON.stringify(battleState));
 }
 
-function currentDeck() {
+function activePlayerCount() { return battleState.twoPlayer ? 2 : 1; }
+
+function deckCards(deckKey) {
   const decks = window.SECONDARY_DECKS || {};
-  return decks[battleState.deck] || [];
+  return decks[deckKey] || [];
 }
 
 function initBattleBoard() {
   battleState = loadBattleState();
-  syncBattleRadio('bbDeck', battleState.deck);
-  syncBattleRadio('bbTurn', battleState.turn);
+  const tp = document.getElementById('bbTwoPlayer');
+  if (tp) {
+    tp.checked = !!battleState.twoPlayer;
+    const pill = tp.closest('.toggle-pill');
+    if (pill) pill.dataset.checked = String(!!battleState.twoPlayer);
+  }
   renderBattleBoard();
 }
 
 function syncBattleRadio(name, value) {
-  const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  const radio = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
   if (radio) radio.checked = true;
 }
 
-function bbAdjust(field, delta) {
-  if (!(field in battleState)) return;
-  battleState[field] = Math.max(BB_MIN, Math.min(BB_MAX, (battleState[field] || 0) + delta));
+function setTwoPlayer(on) {
+  battleState.twoPlayer = !!on;
   saveBattleState();
-  renderCounters();
+  renderBoards();
+  renderRoundTurn();
 }
 
-function setBattleDeck(deck) {
-  if (deck !== 'attacker' && deck !== 'defender') return;
-  battleState.deck = deck;
+function bbAdjust(p, field, delta) {
+  const player = battleState.players[p];
+  if (!player || !(field in player)) return;
+  player[field] = clampScore((player[field] || 0) + delta);
+  saveBattleState();
+  renderCounters(p);
+}
+
+function setBattleDeck(p, deck) {
+  const player = battleState.players[p];
+  if (!player) return;
+  player.deck = deck === 'defender' ? 'defender' : 'attacker';
   saveBattleState();
 }
 
 function setBattleTurn(turn) {
-  if (turn !== 'you' && turn !== 'opp') return;
+  if (turn !== 'p1' && turn !== 'p2') return;
   battleState.turn = turn;
   saveBattleState();
 }
@@ -1467,49 +1513,51 @@ function bbAdjustRound(delta) {
   renderRoundTurn();
 }
 
-// Draw N distinct random cards from the active deck (Fisher–Yates pick).
-// Each drawn card is stamped with its source deck so its accent stays
-// correct even if the deck selector is later switched.
-function drawFromDeck(n, excludeIds = []) {
-  const deck = battleState.deck;
-  const pool = currentDeck().filter(c => !excludeIds.includes(c.id));
+// Draw N distinct random cards from a deck (Fisher–Yates pick). Each drawn
+// card is stamped with its source deck so its accent stays correct.
+function drawFromDeck(deckKey, n, excludeIds) {
+  excludeIds = excludeIds || [];
+  const pool = deckCards(deckKey).filter(c => excludeIds.indexOf(c.id) === -1);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
-  return pool.slice(0, n).map(c => Object.assign({}, c, { deck }));
+  return pool.slice(0, n).map(c => Object.assign({}, c, { deck: deckKey }));
 }
 
-function drawSecondaries() {
-  if (!currentDeck().length) { toast('Deck is empty', 'error'); return; }
-  battleState.hand = drawFromDeck(BB_HAND_SIZE);
+function drawSecondaries(p) {
+  const player = battleState.players[p];
+  if (!player) return;
+  if (!deckCards(player.deck).length) { toast('Deck is empty', 'error'); return; }
+  player.hand = drawFromDeck(player.deck, BB_HAND_SIZE);
   saveBattleState();
-  renderHand();
+  renderHand(p);
 }
 
-function bbDiscard(slot) {
-  const exclude = battleState.hand.map(c => c.id);
-  const [replacement] = drawFromDeck(1, exclude);
+function bbDiscard(p, slot) {
+  const player = battleState.players[p];
+  if (!player) return;
+  const exclude = player.hand.map(c => c.id);
+  const replacement = drawFromDeck(player.deck, 1, exclude)[0];
   if (!replacement) { toast('No fresh cards left in deck', 'error'); return; }
-  battleState.hand[slot] = replacement;
+  player.hand[slot] = replacement;
   saveBattleState();
-  renderHand();
+  renderHand(p);
 }
 
 function resetBattleBoard() {
-  if (!confirm('Reset the Battle Board? This clears scores, CP, round, and drawn cards.')) return;
+  if (!confirm('Reset the Battle Board? This clears scores, CP, round, and drawn cards for both players.')) return;
+  const keepTwoPlayer = battleState.twoPlayer;
   battleState = defaultBattleState();
+  battleState.twoPlayer = keepTwoPlayer;
   saveBattleState();
-  syncBattleRadio('bbDeck', battleState.deck);
-  syncBattleRadio('bbTurn', battleState.turn);
   renderBattleBoard();
   toast('Battle Board reset');
 }
 
 function renderBattleBoard() {
+  renderBoards();
   renderRoundTurn();
-  renderCounters();
-  renderHand();
 }
 
 function renderRoundTurn() {
@@ -1518,31 +1566,88 @@ function renderRoundTurn() {
   syncBattleRadio('bbTurn', battleState.turn);
 }
 
-function renderCounters() {
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
-  set('bbPrimaryVal', battleState.primary);
-  set('bbSecondaryVal', battleState.secondary);
-  set('bbCpVal', battleState.cp);
-  set('bbTotalVpVal', battleState.primary + battleState.secondary);
+function playerLabel(p) { return 'Player ' + (p + 1); }
+
+// Build the board markup for the active player count. Counter/hand values
+// are then patched in by id (no full re-render on every +/- tap → e-ink
+// friendly). Called only when the panel set changes (toggle, reset, init).
+function renderBoards() {
+  const wrap = document.getElementById('bbBoards');
+  if (!wrap) return;
+  const count = activePlayerCount();
+  wrap.className = 'bb-boards' + (count === 2 ? ' two' : '');
+  let html = '';
+  for (let p = 0; p < count; p++) html += boardHtml(p);
+  wrap.innerHTML = html;
+  for (let p = 0; p < count; p++) {
+    syncBattleRadio('bbDeck' + p, battleState.players[p].deck);
+    renderCounters(p);
+    renderHand(p);
+  }
 }
 
-function renderHand() {
-  const wrap = document.getElementById('bbHand');
-  if (!wrap) return;
-  if (!battleState.hand.length) {
-    wrap.innerHTML = `<div class="empty-state">No cards drawn — pick a deck and tap "Draw 2 Secondaries".</div>`;
+function boardHtml(p) {
+  return ''
+    + '<div class="bb-board" data-player="' + p + '">'
+    +   (battleState.twoPlayer ? '<div class="bb-board-head">' + playerLabel(p) + '</div>' : '')
+    +   '<div class="bb-total"><span class="bb-total-label">Total VP</span>'
+    +     '<span class="bb-total-value" id="bbTotalVal' + p + '">0</span></div>'
+    +   '<div class="bb-counters">'
+    +     counterHtml(p, 'primary', 'Primary VP', 'amber')
+    +     counterHtml(p, 'secondary', 'Secondary VP', 'violet')
+    +     counterHtml(p, 'cp', 'Command Points', 'emerald')
+    +   '</div>'
+    +   '<div class="bb-deck">'
+    +     '<label class="field-label">Secondary Deck</label>'
+    +     '<div class="keypad bb-deck-select" id="bbDeckSelect' + p + '">'
+    +       '<input type="radio" id="bbDeck' + p + '_attacker" name="bbDeck' + p + '" value="attacker" onchange="setBattleDeck(' + p + ',&#39;attacker&#39;)"><label for="bbDeck' + p + '_attacker">Attacker</label>'
+    +       '<input type="radio" id="bbDeck' + p + '_defender" name="bbDeck' + p + '" value="defender" onchange="setBattleDeck(' + p + ',&#39;defender&#39;)"><label for="bbDeck' + p + '_defender">Defender</label>'
+    +     '</div>'
+    +     '<button type="button" class="action-btn primary" onclick="drawSecondaries(' + p + ')">Draw 2 Secondaries</button>'
+    +     '<div id="bbHand' + p + '" class="bb-hand"></div>'
+    +   '</div>'
+    + '</div>';
+}
+
+function counterHtml(p, field, label, tone) {
+  const idCap = field.charAt(0).toUpperCase() + field.slice(1);
+  return ''
+    + '<div class="bb-counter" data-tone="' + tone + '">'
+    +   '<div class="bb-counter-label">' + label + '</div>'
+    +   '<div class="bb-counter-stepper">'
+    +     '<button type="button" class="bb-step" onclick="bbAdjust(' + p + ',&#39;' + field + '&#39;,-1)" aria-label="' + label + ' down">−</button>'
+    +     '<span class="bb-counter-value" id="bb' + idCap + 'Val' + p + '">0</span>'
+    +     '<button type="button" class="bb-step" onclick="bbAdjust(' + p + ',&#39;' + field + '&#39;,1)" aria-label="' + label + ' up">+</button>'
+    +   '</div>'
+    + '</div>';
+}
+
+function renderCounters(p) {
+  const player = battleState.players[p];
+  if (!player) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  set('bbPrimaryVal' + p, player.primary);
+  set('bbSecondaryVal' + p, player.secondary);
+  set('bbCpVal' + p, player.cp);
+  set('bbTotalVal' + p, player.primary + player.secondary);
+}
+
+function renderHand(p) {
+  const player = battleState.players[p];
+  const wrap = document.getElementById('bbHand' + p);
+  if (!wrap || !player) return;
+  if (!player.hand.length) {
+    wrap.innerHTML = '<div class="empty-state">No cards drawn — pick a deck and tap "Draw 2 Secondaries".</div>';
     return;
   }
-  wrap.innerHTML = battleState.hand.map((card, i) => `
-    <div class="bb-card" data-deck="${card.deck === 'defender' ? 'defender' : 'attacker'}">
-      <div class="bb-card-head">
-        <span class="bb-card-name">${escapeHtml(card.name)}</span>
-        <span class="bb-card-vp">${escapeHtml(card.vp || '')}</span>
-      </div>
-      <p class="bb-card-text">${escapeHtml(card.text || '')}</p>
-      <button type="button" class="bb-card-discard" onclick="bbDiscard(${i})">↻ Discard &amp; draw new</button>
-    </div>
-  `).join('');
+  wrap.innerHTML = player.hand.map((card, i) =>
+    '<div class="bb-card" data-deck="' + (card.deck === 'defender' ? 'defender' : 'attacker') + '">'
+    + '<div class="bb-card-head"><span class="bb-card-name">' + escapeHtml(card.name) + '</span>'
+    + '<span class="bb-card-vp">' + escapeHtml(card.vp || '') + '</span></div>'
+    + '<p class="bb-card-text">' + escapeHtml(card.text || '') + '</p>'
+    + '<button type="button" class="bb-card-discard" onclick="bbDiscard(' + p + ',' + i + ')">↻ Discard &amp; draw new</button>'
+    + '</div>'
+  ).join('');
 }
 
 document.addEventListener('DOMContentLoaded', () => {

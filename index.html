@@ -85,7 +85,7 @@
   });
   </script>
 
-  <link rel="stylesheet" href="styles.css?v=20260614c">
+  <link rel="stylesheet" href="styles.css?v=20260614d">
 </head>
 <body class="minimal-scrollbar">
 
@@ -342,7 +342,7 @@
   ==================================================================== -->
   <div class="tab-panel" data-tab="battle" data-active="false">
 
-    <!-- Score counters -->
+    <!-- Shared game track (round + whose turn) + optional 2nd player -->
     <section class="section" style="margin-bottom: 1rem;">
       <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
 
@@ -358,58 +358,20 @@
           <div class="bb-turn">
             <span class="bb-round-label">Turn</span>
             <div class="keypad compact" id="bbTurnSelect">
-              <input type="radio" id="bbTurn_you" name="bbTurn" value="you" checked onchange="setBattleTurn('you')"><label for="bbTurn_you">You</label>
-              <input type="radio" id="bbTurn_opp" name="bbTurn" value="opp" onchange="setBattleTurn('opp')"><label for="bbTurn_opp">Opponent</label>
+              <input type="radio" id="bbTurn_p1" name="bbTurn" value="p1" checked onchange="setBattleTurn('p1')"><label for="bbTurn_p1">Player 1</label>
+              <input type="radio" id="bbTurn_p2" name="bbTurn" value="p2" onchange="setBattleTurn('p2')"><label for="bbTurn_p2">Player 2</label>
             </div>
           </div>
         </div>
 
-        <div class="bb-total" id="bbTotalVp">
-          <span class="bb-total-label">Total VP</span>
-          <span class="bb-total-value" id="bbTotalVpVal">0</span>
+        <div class="toggle-row">
+          <label class="toggle-pill" data-checked="false" id="bbTwoPlayerPill">
+            <input type="checkbox" id="bbTwoPlayer" onchange="setTwoPlayer(this.checked)">Two players
+          </label>
         </div>
 
-        <div class="bb-counters">
-          <div class="bb-counter" data-tone="amber">
-            <div class="bb-counter-label">Primary VP</div>
-            <div class="bb-counter-stepper">
-              <button type="button" class="bb-step" onclick="bbAdjust('primary',-1)" aria-label="Primary VP down">−</button>
-              <span class="bb-counter-value" id="bbPrimaryVal">0</span>
-              <button type="button" class="bb-step" onclick="bbAdjust('primary',1)" aria-label="Primary VP up">+</button>
-            </div>
-          </div>
-          <div class="bb-counter" data-tone="violet">
-            <div class="bb-counter-label">Secondary VP</div>
-            <div class="bb-counter-stepper">
-              <button type="button" class="bb-step" onclick="bbAdjust('secondary',-1)" aria-label="Secondary VP down">−</button>
-              <span class="bb-counter-value" id="bbSecondaryVal">0</span>
-              <button type="button" class="bb-step" onclick="bbAdjust('secondary',1)" aria-label="Secondary VP up">+</button>
-            </div>
-          </div>
-          <div class="bb-counter" data-tone="emerald">
-            <div class="bb-counter-label">Command Points</div>
-            <div class="bb-counter-stepper">
-              <button type="button" class="bb-step" onclick="bbAdjust('cp',-1)" aria-label="Command points down">−</button>
-              <span class="bb-counter-value" id="bbCpVal">0</span>
-              <button type="button" class="bb-step" onclick="bbAdjust('cp',1)" aria-label="Command points up">+</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Secondary objective deck -->
-    <section class="section" style="margin-bottom: 1rem;">
-      <div class="section-body" style="display:flex; flex-direction:column; gap:.75rem;">
-        <label class="field-label">Secondary Deck</label>
-        <div class="keypad" id="bbDeckSelect">
-          <input type="radio" id="bbDeck_attacker" name="bbDeck" value="attacker" checked onchange="setBattleDeck('attacker')"><label for="bbDeck_attacker">Attacker</label>
-          <input type="radio" id="bbDeck_defender" name="bbDeck" value="defender" onchange="setBattleDeck('defender')"><label for="bbDeck_defender">Defender</label>
-        </div>
-
-        <button class="action-btn primary" onclick="drawSecondaries()">Draw 2 Secondaries</button>
-
-        <div id="bbHand" class="bb-hand"></div>
+        <!-- One or two player boards (counters + own secondary deck) rendered here -->
+        <div id="bbBoards" class="bb-boards"></div>
       </div>
     </section>
 
@@ -476,8 +438,8 @@
 
 <div id="toastContainer" class="toast-container"></div>
 
-<script src="data/sample-targets.js?v=20260614c"></script>
-<script src="data/secondary-decks.js?v=20260614c"></script>
-<script src="app.js?v=20260614c"></script>
+<script src="data/sample-targets.js?v=20260614d"></script>
+<script src="data/secondary-decks.js?v=20260614d"></script>
+<script src="app.js?v=20260614d"></script>
 </body>
 </html>

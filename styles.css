@@ -1012,11 +1012,48 @@ body {
 .bb-card-discard:hover { background: #27272a; color: #fbbf24; }
 
 /* Deck selector — Attacker accent red, Defender accent green. */
-#bbDeckSelect input[value="attacker"]:checked + label {
+.bb-deck-select input[value="attacker"]:checked + label {
   background: #ef4444; border-color: #ef4444; color: #450a0a;
 }
-#bbDeckSelect input[value="defender"]:checked + label {
+.bb-deck-select input[value="defender"]:checked + label {
   background: #22c55e; border-color: #22c55e; color: #052e16;
+}
+
+/* ===== Two-player boards ===== */
+.bb-boards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.bb-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.bb-board-head {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fbbf24;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.6);
+}
+.bb-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+/* When a 2nd player is active, frame each board so they read as separate. */
+.bb-boards.two > .bb-board {
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+/* Side-by-side once there's room (e.g. Kindle Scribe laid flat); stacked on phones. */
+@media (min-width: 700px) {
+  .bb-boards.two { flex-direction: row; align-items: flex-start; }
+  .bb-boards.two > .bb-board { flex: 1 1 0; min-width: 0; }
 }
 
 /* Round + turn tracker row */
@@ -1132,7 +1169,7 @@ html[data-theme="eink"] .action-btn,
 html[data-theme="eink"] .btn.btn-primary,
 html[data-theme="eink"] .die.success,
 html[data-theme="eink"] .die.crit,
-html[data-theme="eink"] #bbDeckSelect input[type="radio"]:checked + label,
+html[data-theme="eink"] .bb-deck-select input[type="radio"]:checked + label,
 html[data-theme="eink"] #bbTurnSelect input[type="radio"]:checked + label {
   background-color: #000 !important;
   color: #fff !important;
